@@ -291,13 +291,6 @@
         .clear-key-button.visible {
             display: inline-block;
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .loading {
-            animation: spin 1s linear infinite;
-        }
     </style>
 </head>
 <body class="min-h-screen p-6">
@@ -1148,7 +1141,7 @@
         // Function to add a conversation round
         function addConversationRound(role = 'user', message = '', saveToStorage = true) {
             const container = document.getElementById('conversationRoundsContainer');
-            const roundId = 'round-' + Date.now();
+            const roundId = `round-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
             
             const roundElement = createConversationRoundElement(roundId, role, message);
             container.appendChild(roundElement);
@@ -1172,6 +1165,25 @@
             
             if (saveToStorage) {
                 handleRoundChange();
+            }
+            return roundElement;
+        }
+
+        function continueConversationFromResult(card) {
+            if (!card) return;
+            const responseText = (card.dataset.responseText || '').trim();
+            if (!responseText) {
+                alert('No response text available to continue.');
+                return;
+            }
+            addConversationRound('assistant', responseText, true);
+            const userRound = addConversationRound('user', '', true);
+            if (userRound) {
+                userRound.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                const textarea = userRound.querySelector('textarea');
+                if (textarea) {
+                    requestAnimationFrame(() => textarea.focus());
+                }
             }
         }
 
@@ -1379,13 +1391,18 @@
                     </div>
                     <div class="border border-base-1/20 p-3 min-h-[120px] bg-base-3 rounded">
                         <div class="tab-panel whitespace-pre-wrap break-words text-[13px]" data-tab="text">
-                            <div class="loading inline-block w-4 h-4 border-2 border-base-1 border-t-sol-cyan rounded-full"></div>
+                            <div class="flex items-center justify-center min-h-[120px]">
+                                <div class="inline-block w-4 h-4 border-2 border-base-1 border-t-sol-cyan rounded-full animate-spin"></div>
+                            </div>
                         </div>
                         <div class="tab-panel hidden prose prose-sm max-w-none text-base-00 text-[13px]" data-tab="markdown"></div>
                         <div class="tab-panel hidden text-[13px]" data-tab="cost">
                             <p class="text-base-1">Cost details will appear after a successful response.</p>
                         </div>
                     </div>
+                </div>
+                <div class="mt-4 flex justify-end">
+                    <button class="btn-secondary text-xs continue-conversation disabled:opacity-40 disabled:cursor-not-allowed" disabled>Continue conversation</button>
                 </div>
             `;
 
@@ -1411,6 +1428,12 @@
                 btn.addEventListener('click', () => setActiveTab(btn.dataset.tab));
             });
             setActiveTab('text');
+            const continueButton = card.querySelector('.continue-conversation');
+            if (continueButton) {
+                continueButton.addEventListener('click', () => {
+                    continueConversationFromResult(card);
+                });
+            }
             return card;
         }
 
@@ -1435,6 +1458,15 @@
             }
 
             const rawText = typeof content === 'string' ? content : '';
+            if (status === 'success') {
+                card.dataset.responseText = rawText;
+            } else {
+                card.dataset.responseText = '';
+            }
+            const continueButton = card.querySelector('.continue-conversation');
+            if (continueButton) {
+                continueButton.disabled = !(status === 'success' && rawText.trim());
+            }
             if (textPanel) {
                 textPanel.textContent = rawText;
             }
