@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LLM API Comparator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cousine:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/gpt-tokenizer@3.4.0/dist/o200k_base.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script type="module">
@@ -16,238 +19,258 @@
     </script>
     <style type="text/tailwindcss">
         @theme {
-            /* Amber Terminal Color Palette */
-            --color-terminal-bg: #0a0a08;
-            --color-terminal-text: #ffb000;
-            --color-terminal-text-deep: #ff8c00;
-            --color-terminal-muted: #664400;
-            --color-terminal-dim: #996600;
-            --color-terminal-error: #ff6600;
-            --color-terminal-success: #ddaa00;
-            --color-terminal-green: #00ff00;
+            /* Solarized Light Colors */
+            --color-base-3: #fdf6e3;
+            --color-base-2: #eee8d5;
+            --color-base-1: #93a1a1;
+            --color-base-00: #657b83;
+            --color-base-01: #586e75;
+
+            /* Accents */
+            --color-sol-cyan: #2aa198;
+            --color-sol-green: #859900;
+            --color-sol-yellow: #b58900;
+            --color-sol-orange: #cb4b16;
+            --color-sol-red: #dc322f;
+            --color-sol-magenta: #d33682;
 
             /* Typography */
-            --font-family-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Courier New', monospace;
-            --line-height-terminal: 1.6;
-
-            /* Effects */
-            --glow-sm: 0 0 5px rgb(255 176 0 / 0.5);
-            --glow-md: 0 0 10px rgb(255 176 0 / 0.4);
-            --glow-lg: 0 0 20px rgb(255 176 0 / 0.3);
-
-            /* Screen curvature */
-            --radius-screen: 8px;
+            --font-mono: 'Cousine', 'Monaco', 'Consolas', monospace;
         }
 
         @layer base {
             body {
-                @apply bg-terminal-bg text-terminal-text font-mono antialiased;
+                @apply bg-base-3 text-base-00 font-mono antialiased;
                 line-height: 1.6;
             }
         }
 
-        @layer utilities {
-            .text-glow {
-                text-shadow: var(--glow-sm), var(--glow-md);
-            }
+        /* Card styling */
+        .card {
+            background: var(--color-base-2);
+            border: 1px solid rgba(147, 161, 161, 0.2);
+            border-radius: 4px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(101, 123, 131, 0.08);
+        }
 
-            .text-glow-strong {
-                text-shadow:
-                    0 0 5px rgb(255 176 0 / 0.8),
-                    0 0 10px rgb(255 176 0 / 0.4),
-                    0 0 15px rgb(255 176 0 / 0.2);
-            }
+        /* Box with title */
+        .box-with-title {
+            border: 1px solid rgba(147, 161, 161, 0.2);
+            border-radius: 4px;
+            padding: 1.5rem;
+            position: relative;
+            background: var(--color-base-2);
+        }
 
-            .box-glow {
-                box-shadow: var(--glow-lg), inset 0 0 100px rgb(255 176 0 / 0.02);
-            }
+        .box-title {
+            position: absolute;
+            top: -0.625rem;
+            left: 1rem;
+            background: var(--color-base-3);
+            padding: 0 0.5rem;
+            font-size: 0.75rem;
+            color: var(--color-base-01);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
 
-            /* CRT Screen effect */
-            .crt-screen {
-                @apply border-2 border-terminal-text;
-                border-radius: var(--radius-screen);
-                box-shadow: var(--glow-lg), inset 0 0 100px rgb(255 176 0 / 0.02);
-                position: relative;
-            }
+        /* Provider item highlight */
+        .provider-item {
+            border-left: 3px solid rgba(147, 161, 161, 0.2);
+            transition: all 150ms;
+            padding: 1rem;
+        }
 
-            /* Scanlines overlay */
-            .scanlines::before {
-                content: '';
-                position: absolute;
-                inset: 0;
-                background: repeating-linear-gradient(
-                    0deg,
-                    rgb(0 0 0 / 0.15),
-                    rgb(0 0 0 / 0.15) 1px,
-                    transparent 1px,
-                    transparent 2px
-                );
-                pointer-events: none;
-                z-index: 10;
-                border-radius: var(--radius-screen);
-            }
+        .provider-item:hover {
+            border-left-color: var(--color-sol-cyan);
+            background: var(--color-base-2);
+        }
 
-            /* Terminal box borders */
-            .terminal-box {
-                @apply border border-terminal-text p-4 relative;
-                background: rgb(255 176 0 / 0.02);
-            }
+        .provider-item.active {
+            border-left-color: var(--color-sol-cyan);
+            background: var(--color-base-2);
+        }
 
-            /* Box title positioned on border */
-            .terminal-box-title {
-                @apply absolute -top-2.5 left-4 bg-terminal-bg px-2 text-xs text-terminal-text-deep uppercase tracking-wider;
-            }
+        /* Buttons */
+        .btn {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+        }
 
-            /* Border highlight on left */
-            .border-l-highlight {
-                @apply border-l-2 border-terminal-muted transition-colors duration-100;
-            }
+        .btn-primary {
+            background: var(--color-sol-cyan);
+            color: var(--color-base-3);
+            border: 0;
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+        }
 
-            .border-l-highlight:hover {
-                @apply border-terminal-text;
-                background: rgb(255 176 0 / 0.05);
-            }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(42, 161, 152, 0.3);
+        }
 
-            .border-l-highlight.active {
-                @apply border-terminal-text-deep;
-                background: rgb(255 176 0 / 0.08);
-            }
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
 
-            /* Terminal buttons */
-            .terminal-btn {
-                @apply bg-transparent border border-terminal-text text-terminal-text
-                       px-3 py-1.5 text-[11px] uppercase tracking-wider cursor-pointer
-                       transition-all duration-100;
-            }
+        .btn-secondary {
+            background: transparent;
+            color: var(--color-base-00);
+            border: 1px solid rgba(147, 161, 161, 0.3);
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+        }
 
-            .terminal-btn:hover {
-                background: rgb(255 176 0 / 0.2);
-                box-shadow: 0 0 10px rgb(255 176 0 / 0.3);
-            }
+        .btn-secondary:hover {
+            background: var(--color-base-2);
+            border-color: var(--color-sol-cyan);
+        }
 
-            .terminal-btn-primary {
-                @apply bg-terminal-muted border border-terminal-text-deep text-terminal-text
-                       px-3 py-1.5 text-[11px] uppercase tracking-wider cursor-pointer
-                       transition-all duration-100;
-            }
+        .btn-danger {
+            background: transparent;
+            color: var(--color-sol-red);
+            border: 1px solid var(--color-sol-red);
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+        }
 
-            .terminal-btn-primary:hover {
-                background: rgb(255 140 0 / 0.3);
-                box-shadow: 0 0 10px rgb(255 176 0 / 0.3);
-            }
+        .btn-danger:hover {
+            background: rgba(220, 50, 47, 0.1);
+            box-shadow: 0 4px 12px rgba(220, 50, 47, 0.2);
+        }
 
-            .terminal-btn-danger {
-                @apply bg-transparent border border-terminal-error text-terminal-error
-                       px-3 py-1.5 text-[11px] uppercase tracking-wider cursor-pointer
-                       transition-all duration-100;
-            }
+        .btn-success {
+            background: transparent;
+            color: var(--color-sol-green);
+            border: 1px solid var(--color-sol-green);
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+        }
 
-            .terminal-btn-danger:hover {
-                background: rgb(255 102 0 / 0.2);
-                box-shadow: 0 0 10px rgb(255 102 0 / 0.3);
-            }
+        .btn-success:hover {
+            background: rgba(133, 153, 0, 0.1);
+            box-shadow: 0 4px 12px rgba(133, 153, 0, 0.2);
+        }
 
-            .terminal-btn-success {
-                @apply bg-transparent border border-terminal-success text-terminal-success
-                       px-3 py-1.5 text-[11px] uppercase tracking-wider cursor-pointer
-                       transition-all duration-100;
-            }
+        /* Form inputs */
+        .form-input {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            background: var(--color-base-3);
+            border: 1px solid rgba(147, 161, 161, 0.2);
+            border-radius: 4px;
+            font-size: 13px;
+            color: var(--color-base-00);
+            font-family: var(--font-mono);
+            transition: all 200ms;
+            outline: none;
+        }
 
-            .terminal-btn-success:hover {
-                background: rgb(221 170 0 / 0.2);
-                box-shadow: 0 0 10px rgb(221 170 0 / 0.3);
-            }
+        .form-input:focus {
+            border-color: var(--color-sol-cyan);
+            box-shadow: 0 0 0 3px rgba(42, 161, 152, 0.2);
+        }
 
-            /* Terminal inputs */
-            .terminal-input {
-                @apply w-full bg-terminal-bg border border-terminal-muted border-l-[3px]
-                       border-l-terminal-text text-terminal-text px-3 py-2 text-[12px]
-                       outline-none;
-            }
+        .form-input::placeholder {
+            color: var(--color-base-1);
+        }
 
-            .terminal-input:focus {
-                @apply border-l-terminal-text-deep;
-                background: rgb(255 176 0 / 0.05);
-                box-shadow: 0 0 5px rgb(255 176 0 / 0.2);
-            }
+        /* Checkbox */
+        .checkbox {
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border: 1px solid var(--color-base-1);
+            background: var(--color-base-3);
+            cursor: pointer;
+            position: relative;
+            flex-shrink: 0;
+            border-radius: 2px;
+        }
 
-            .terminal-input::placeholder {
-                @apply text-terminal-muted;
-            }
+        .checkbox:checked {
+            background: var(--color-sol-cyan);
+            border-color: var(--color-sol-cyan);
+        }
 
-            /* Terminal checkbox */
-            .terminal-checkbox {
-                appearance: none;
-                width: 16px;
-                height: 16px;
-                border: 1px solid var(--color-terminal-text);
-                background: var(--color-terminal-bg);
-                cursor: pointer;
-                position: relative;
-                flex-shrink: 0;
-            }
+        .checkbox:checked::before {
+            content: '✓';
+            position: absolute;
+            top: -2px;
+            left: 2px;
+            color: var(--color-base-3);
+            font-size: 12px;
+            font-weight: bold;
+        }
 
-            .terminal-checkbox:checked::before {
-                content: 'X';
-                position: absolute;
-                top: -2px;
-                left: 3px;
-                color: var(--color-terminal-text-deep);
-                font-size: 12px;
-            }
-
-            /* Cursor blink animation */
-            @keyframes blink {
-                0%, 50% { opacity: 1; }
-                51%, 100% { opacity: 0; }
-            }
-
-            .cursor-blink {
-                animation: blink 1s linear infinite;
-            }
-
-            /* Terminal prose styling for markdown */
-            .prose {
-                color: var(--color-terminal-text);
-            }
-            .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
-                color: var(--color-terminal-text-deep);
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-            }
-            .prose a {
-                color: var(--color-terminal-text-deep);
-            }
-            .prose a:hover {
-                color: var(--color-terminal-text);
-            }
-            .prose strong {
-                color: var(--color-terminal-text-deep);
-            }
-            .prose code {
-                color: var(--color-terminal-text);
-                background: rgb(255 176 0 / 0.1);
-                padding: 0.1em 0.3em;
-            }
-            .prose pre {
-                background: rgb(255 176 0 / 0.05);
-                border: 1px solid var(--color-terminal-muted);
-                padding: 0.75rem;
-            }
-            .prose pre code {
-                background: transparent;
-                padding: 0;
-            }
-            .prose blockquote {
-                border-left: 3px solid var(--color-terminal-muted);
-                color: var(--color-terminal-dim);
-            }
-            .prose ul, .prose ol {
-                color: var(--color-terminal-text);
-            }
-            .prose hr {
-                border-color: var(--color-terminal-muted);
-            }
+        /* Prose styling for markdown */
+        .prose {
+            color: var(--color-base-00);
+        }
+        .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+            color: var(--color-base-01);
+            font-weight: 700;
+        }
+        .prose a {
+            color: var(--color-sol-cyan);
+            text-decoration: none;
+        }
+        .prose a:hover {
+            color: var(--color-base-01);
+        }
+        .prose strong {
+            color: var(--color-base-01);
+            font-weight: 700;
+        }
+        .prose code {
+            color: var(--color-base-00);
+            background: rgba(42, 161, 152, 0.1);
+            padding: 0.1em 0.3em;
+            border-radius: 3px;
+        }
+        .prose pre {
+            background: var(--color-base-2);
+            border: 1px solid rgba(147, 161, 161, 0.2);
+            border-left: 3px solid var(--color-sol-cyan);
+            padding: 0.75rem;
+            border-radius: 4px;
+        }
+        .prose pre code {
+            background: transparent;
+            padding: 0;
+        }
+        .prose blockquote {
+            border-left: 3px solid var(--color-base-1);
+            color: var(--color-base-01);
+            padding-left: 1rem;
+        }
+        .prose ul, .prose ol {
+            color: var(--color-base-00);
+        }
+        .prose hr {
+            border-color: var(--color-base-1);
         }
 
         .key-indicator {
@@ -277,161 +300,204 @@
         }
     </style>
 </head>
-<body class="min-h-screen p-5">
-    <div class="max-w-6xl mx-auto crt-screen scanlines p-8">
-        <h1 class="text-[18px] uppercase tracking-[2px] text-glow mb-8 text-center">LLM API COMPARATOR<span class="cursor-blink">_</span></h1>
+<body class="min-h-screen p-6">
+    <!-- Fixed background gradient -->
+    <div class="fixed inset-0 -z-10"
+         style="background:
+           linear-gradient(135deg, #fdf6e3 0%, #eee8d5 100%),
+           radial-gradient(circle at 20% 80%, rgba(42,161,152,0.08) 0%, transparent 50%),
+           radial-gradient(circle at 80% 20%, rgba(42,161,152,0.05) 0%, transparent 50%);">
+    </div>
 
-        <div class="terminal-box mb-6">
-            <div class="terminal-box-title">┤ API PROVIDERS ├</div>
-            <div class="space-y-4">
-                <div class="p-3 border-l-highlight">
-                    <div class="flex items-center gap-3 cursor-pointer">
-                        <input type="checkbox" id="openai-provider" class="provider-checkbox terminal-checkbox" data-provider="openai">
-                        <label for="openai-provider" class="cursor-pointer text-terminal-text">OpenAI</label>
-                        <span class="key-indicator items-center gap-1.5 ml-auto text-[10px] text-terminal-green" data-provider="openai" title="API key saved">
-                            <span>●</span>
-                            KEY SAVED
-                        </span>
-                        <button class="clear-key-button terminal-btn-danger text-[10px] px-2 py-1" data-provider="openai">CLEAR KEY</button>
-                    </div>
-                    <div class="model-options ml-6 mt-3 pt-3 border-t border-terminal-muted" id="openai-models">
-                        <div class="text-[11px] text-terminal-dim uppercase tracking-wide mb-2">Saved models</div>
-                        <div class="saved-models flex flex-col gap-1.5" id="openai-saved-models"></div>
-                        <div class="flex items-center gap-2 py-1.5">
-                            <input type="checkbox" id="openai-gpt5nano" class="terminal-checkbox" data-provider="openai" data-model="gpt-5-nano">
-                            <label for="openai-gpt5nano" class="cursor-pointer text-terminal-dim text-[12px]">gpt-5-nano</label>
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold tracking-tight text-sol-cyan mb-8 text-center">LLM API Comparator</h1>
+
+        <div class="flex flex-wrap justify-center gap-2 mb-6">
+            <button class="app-tab-btn btn-primary text-sm" data-tab="comparator">Comparator</button>
+            <button class="app-tab-btn btn-secondary text-sm" data-tab="security">Data Security</button>
+        </div>
+
+        <div id="tab-comparator" class="app-tab">
+            <div class="box-with-title mb-6">
+                <div class="box-title">API Providers</div>
+                <div class="space-y-4">
+                    <div class="provider-item">
+                        <div class="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" id="openai-provider" class="provider-checkbox checkbox" data-provider="openai">
+                            <label for="openai-provider" class="cursor-pointer text-base-00 font-semibold">OpenAI</label>
+                            <span class="key-indicator items-center gap-1.5 ml-auto text-[12px] text-sol-green" data-provider="openai" title="API key saved">
+                                <span>●</span>
+                                Key Saved
+                            </span>
+                            <button class="clear-key-button btn-danger text-xs px-2 py-1" data-provider="openai">Clear</button>
                         </div>
-                        <div class="mt-2 flex items-center gap-2">
-                            <input type="text" id="openai-custom" placeholder="> Custom model name..." data-provider="openai" class="terminal-input flex-1">
-                            <button id="openai-save-model" class="terminal-btn-success">SAVE</button>
+                        <div class="model-options ml-6 mt-3 pt-3 border-t border-base-1/20" id="openai-models">
+                            <div class="text-xs text-base-1 uppercase tracking-wider mb-2">Saved models</div>
+                            <div class="saved-models flex flex-col gap-1.5" id="openai-saved-models"></div>
+                            <div class="flex items-center gap-2 py-1.5">
+                                <input type="checkbox" id="openai-gpt5nano" class="checkbox" data-provider="openai" data-model="gpt-5-nano">
+                                <label for="openai-gpt5nano" class="cursor-pointer text-base-01 text-[13px]">gpt-5-nano</label>
+                            </div>
+                            <div class="mt-2 flex items-center gap-2">
+                                <input type="text" id="openai-custom" placeholder="Custom model name..." data-provider="openai" class="form-input flex-1">
+                                <button id="openai-save-model" class="btn-success">Save</button>
+                            </div>
                         </div>
                     </div>
+
+                    <div class="provider-item">
+                        <div class="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" id="anthropic-provider" class="provider-checkbox checkbox" data-provider="anthropic">
+                            <label for="anthropic-provider" class="cursor-pointer text-base-00 font-semibold">Anthropic</label>
+                            <span class="key-indicator items-center gap-1.5 ml-auto text-[12px] text-sol-green" data-provider="anthropic" title="API key saved">
+                                <span>●</span>
+                                Key Saved
+                            </span>
+                            <button class="clear-key-button btn-danger text-xs px-2 py-1" data-provider="anthropic">Clear</button>
+                        </div>
+                        <div class="model-options ml-6 mt-3 pt-3 border-t border-base-1/20" id="anthropic-models">
+                            <div class="text-xs text-base-1 uppercase tracking-wider mb-2">Saved models</div>
+                            <div class="saved-models flex flex-col gap-1.5" id="anthropic-saved-models"></div>
+                            <div class="flex items-center gap-2 py-1.5">
+                                <input type="checkbox" id="anthropic-haiku3" class="checkbox" data-provider="anthropic" data-model="claude-3-haiku-20240307">
+                                <label for="anthropic-haiku3" class="cursor-pointer text-base-01 text-[13px]">claude-3-haiku</label>
+                            </div>
+                            <div class="flex items-center gap-2 py-1.5">
+                                <input type="checkbox" id="anthropic-haiku35" class="checkbox" data-provider="anthropic" data-model="claude-3-5-haiku-20241022">
+                                <label for="anthropic-haiku35" class="cursor-pointer text-base-01 text-[13px]">claude-3.5-haiku</label>
+                            </div>
+                            <div class="flex items-center gap-2 py-1.5">
+                                <input type="checkbox" id="anthropic-haiku45" class="checkbox" data-provider="anthropic" data-model="claude-haiku-4-5-20251001">
+                                <label for="anthropic-haiku45" class="cursor-pointer text-base-01 text-[13px]">claude-4.5-haiku</label>
+                            </div>
+                            <div class="mt-2 flex items-center gap-2">
+                                <input type="text" id="anthropic-custom" placeholder="Custom model name..." data-provider="anthropic" class="form-input flex-1">
+                                <button id="anthropic-save-model" class="btn-success">Save</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="provider-item">
+                        <div class="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" id="gemini-provider" class="provider-checkbox checkbox" data-provider="gemini">
+                            <label for="gemini-provider" class="cursor-pointer text-base-00 font-semibold">Google Gemini</label>
+                            <span class="key-indicator items-center gap-1.5 ml-auto text-[12px] text-sol-green" data-provider="gemini" title="API key saved">
+                                <span>●</span>
+                                Key Saved
+                            </span>
+                            <button class="clear-key-button btn-danger text-xs px-2 py-1" data-provider="gemini">Clear</button>
+                        </div>
+                        <div class="model-options ml-6 mt-3 pt-3 border-t border-base-1/20" id="gemini-models">
+                            <div class="text-xs text-base-1 uppercase tracking-wider mb-2">Saved models</div>
+                            <div class="saved-models flex flex-col gap-1.5" id="gemini-saved-models"></div>
+                            <div class="flex items-center gap-2 py-1.5">
+                                <input type="checkbox" id="gemini-flash" class="checkbox" data-provider="gemini" data-model="gemini-2.5-flash-lite">
+                                <label for="gemini-flash" class="cursor-pointer text-base-01 text-[13px]">gemini-2.5-flash-lite</label>
+                            </div>
+                            <div class="flex items-center gap-2 py-1.5">
+                                <input type="checkbox" id="gemini-flash3" class="checkbox" data-provider="gemini" data-model="gemini-3-flash-preview">
+                                <label for="gemini-flash3" class="cursor-pointer text-base-01 text-[13px]">gemini-3-flash-preview</label>
+                            </div>
+                            <div class="mt-2 flex items-center gap-2">
+                                <input type="text" id="gemini-custom" placeholder="Custom model name..." data-provider="gemini" class="form-input flex-1">
+                                <button id="gemini-save-model" class="btn-success">Save</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="provider-item">
+                        <div class="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" id="openrouter-provider" class="provider-checkbox checkbox" data-provider="openrouter">
+                            <label for="openrouter-provider" class="cursor-pointer text-base-00 font-semibold">OpenRouter</label>
+                            <span class="key-indicator items-center gap-1.5 ml-auto text-[12px] text-sol-green" data-provider="openrouter" title="API key saved">
+                                <span>●</span>
+                                Key Saved
+                            </span>
+                            <button class="clear-key-button btn-danger text-xs px-2 py-1" data-provider="openrouter">Clear</button>
+                        </div>
+                        <div class="model-options ml-6 mt-3 pt-3 border-t border-base-1/20" id="openrouter-models">
+                            <div class="text-xs text-base-1 uppercase tracking-wider mb-2">Saved models</div>
+                            <div class="saved-models flex flex-col gap-1.5" id="openrouter-saved-models"></div>
+                            <div class="mt-2 flex items-center gap-2">
+                                <input type="text" id="openrouter-custom" placeholder="Model name (e.g., openai/gpt-3.5-turbo)..." data-provider="openrouter" class="form-input flex-1">
+                                <button id="openrouter-save-model" class="btn-success">Save</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="customProvidersContainer" class="space-y-4"></div>
+                    <button id="addCustomProviderButton" class="w-full border border-dashed border-base-1/30 p-4 text-center text-base-1 cursor-pointer transition-all duration-150 hover:border-sol-cyan hover:text-sol-cyan hover:bg-base-2 rounded">+ Add Custom or Local Provider</button>
                 </div>
+            </div>
 
-                <div class="p-3 border-l-highlight">
-                    <div class="flex items-center gap-3 cursor-pointer">
-                        <input type="checkbox" id="anthropic-provider" class="provider-checkbox terminal-checkbox" data-provider="anthropic">
-                        <label for="anthropic-provider" class="cursor-pointer text-terminal-text">Anthropic</label>
-                        <span class="key-indicator items-center gap-1.5 ml-auto text-[10px] text-terminal-green" data-provider="anthropic" title="API key saved">
-                            <span>●</span>
-                            KEY SAVED
-                        </span>
-                        <button class="clear-key-button terminal-btn-danger text-[10px] px-2 py-1" data-provider="anthropic">CLEAR KEY</button>
-                    </div>
-                    <div class="model-options ml-6 mt-3 pt-3 border-t border-terminal-muted" id="anthropic-models">
-                        <div class="text-[11px] text-terminal-dim uppercase tracking-wide mb-2">Saved models</div>
-                        <div class="saved-models flex flex-col gap-1.5" id="anthropic-saved-models"></div>
-                        <div class="flex items-center gap-2 py-1.5">
-                            <input type="checkbox" id="anthropic-haiku3" class="terminal-checkbox" data-provider="anthropic" data-model="claude-3-haiku-20240307">
-                            <label for="anthropic-haiku3" class="cursor-pointer text-terminal-dim text-[12px]">claude-3-haiku</label>
-                        </div>
-                        <div class="flex items-center gap-2 py-1.5">
-                            <input type="checkbox" id="anthropic-haiku35" class="terminal-checkbox" data-provider="anthropic" data-model="claude-3-5-haiku-20241022">
-                            <label for="anthropic-haiku35" class="cursor-pointer text-terminal-dim text-[12px]">claude-3.5-haiku</label>
-                        </div>
-                        <div class="flex items-center gap-2 py-1.5">
-                            <input type="checkbox" id="anthropic-haiku45" class="terminal-checkbox" data-provider="anthropic" data-model="claude-haiku-4-5-20251001">
-                            <label for="anthropic-haiku45" class="cursor-pointer text-terminal-dim text-[12px]">claude-4.5-haiku</label>
-                        </div>
-                        <div class="mt-2 flex items-center gap-2">
-                            <input type="text" id="anthropic-custom" placeholder="> Custom model name..." data-provider="anthropic" class="terminal-input flex-1">
-                            <button id="anthropic-save-model" class="terminal-btn-success">SAVE</button>
-                        </div>
-                    </div>
+            <div class="box-with-title mb-6">
+                <div class="box-title">Import/Export</div>
+                <div class="flex flex-wrap gap-2">
+                    <button id="downloadPrompts" class="btn-secondary">Download JSON</button>
+                    <button id="uploadPrompts" class="btn-secondary">Upload JSON</button>
+                    <button id="loadFromGist" class="btn-secondary">Load from Gist</button>
                 </div>
-
-                <div class="p-3 border-l-highlight">
-                    <div class="flex items-center gap-3 cursor-pointer">
-                        <input type="checkbox" id="gemini-provider" class="provider-checkbox terminal-checkbox" data-provider="gemini">
-                        <label for="gemini-provider" class="cursor-pointer text-terminal-text">Google Gemini</label>
-                        <span class="key-indicator items-center gap-1.5 ml-auto text-[10px] text-terminal-green" data-provider="gemini" title="API key saved">
-                            <span>●</span>
-                            KEY SAVED
-                        </span>
-                        <button class="clear-key-button terminal-btn-danger text-[10px] px-2 py-1" data-provider="gemini">CLEAR KEY</button>
+                <input type="file" id="uploadPromptsFile" accept="application/json" class="hidden">
+                <div id="gistLoader" class="hidden mt-4 pt-4 border-t border-base-1/20 flex flex-col gap-2">
+                    <label for="gistInput" class="text-xs text-base-1 uppercase tracking-wider">Gist URL or ID</label>
+                    <div class="flex flex-col sm:flex-row gap-2">
+                        <input id="gistInput" type="text" placeholder="https://gist.github.com/username/abcdef... or gist id" class="form-input flex-1">
+                        <button id="fetchGistButton" class="btn-primary">Fetch</button>
                     </div>
-                    <div class="model-options ml-6 mt-3 pt-3 border-t border-terminal-muted" id="gemini-models">
-                        <div class="text-[11px] text-terminal-dim uppercase tracking-wide mb-2">Saved models</div>
-                        <div class="saved-models flex flex-col gap-1.5" id="gemini-saved-models"></div>
-                        <div class="flex items-center gap-2 py-1.5">
-                            <input type="checkbox" id="gemini-flash" class="terminal-checkbox" data-provider="gemini" data-model="gemini-2.5-flash-lite">
-                            <label for="gemini-flash" class="cursor-pointer text-terminal-dim text-[12px]">gemini-2.5-flash-lite</label>
-                        </div>
-                        <div class="flex items-center gap-2 py-1.5">
-                            <input type="checkbox" id="gemini-flash3" class="terminal-checkbox" data-provider="gemini" data-model="gemini-3-flash-preview">
-                            <label for="gemini-flash3" class="cursor-pointer text-terminal-dim text-[12px]">gemini-3-flash-preview</label>
-                        </div>
-                        <div class="mt-2 flex items-center gap-2">
-                            <input type="text" id="gemini-custom" placeholder="> Custom model name..." data-provider="gemini" class="terminal-input flex-1">
-                            <button id="gemini-save-model" class="terminal-btn-success">SAVE</button>
-                        </div>
-                    </div>
+                    <div id="gistStatus" class="text-xs text-base-1"></div>
                 </div>
+            </div>
 
-                <div class="p-3 border-l-highlight">
-                    <div class="flex items-center gap-3 cursor-pointer">
-                        <input type="checkbox" id="openrouter-provider" class="provider-checkbox terminal-checkbox" data-provider="openrouter">
-                        <label for="openrouter-provider" class="cursor-pointer text-terminal-text">OpenRouter</label>
-                        <span class="key-indicator items-center gap-1.5 ml-auto text-[10px] text-terminal-green" data-provider="openrouter" title="API key saved">
-                            <span>●</span>
-                            KEY SAVED
-                        </span>
-                        <button class="clear-key-button terminal-btn-danger text-[10px] px-2 py-1" data-provider="openrouter">CLEAR KEY</button>
-                    </div>
-                    <div class="model-options ml-6 mt-3 pt-3 border-t border-terminal-muted" id="openrouter-models">
-                        <div class="text-[11px] text-terminal-dim uppercase tracking-wide mb-2">Saved models</div>
-                        <div class="saved-models flex flex-col gap-1.5" id="openrouter-saved-models"></div>
-                        <div class="mt-2 flex items-center gap-2">
-                            <input type="text" id="openrouter-custom" placeholder="> Model name (e.g., openai/gpt-3.5-turbo)..." data-provider="openrouter" class="terminal-input flex-1">
-                            <button id="openrouter-save-model" class="terminal-btn-success">SAVE</button>
-                        </div>
-                    </div>
+            <div class="box-with-title mb-6">
+                <div class="box-title">System Prompt</div>
+                <textarea id="systemPrompt" placeholder="Enter your system prompt here..." class="form-input resize-y min-h-[100px]">You are a helpful assistant.</textarea>
+            </div>
+
+            <!-- Conversation Rounds Section -->
+            <div class="box-with-title mb-6">
+                <div class="box-title">Conversation Rounds</div>
+                <div class="flex justify-end mb-4">
+                    <button id="addConversationRound" class="btn-secondary">+ Add Round</button>
                 </div>
+                <div id="conversationRoundsContainer" class="space-y-3"></div>
+            </div>
 
-                <div id="customProvidersContainer" class="space-y-4"></div>
-                <button id="addCustomProviderButton" class="w-full border border-dashed border-terminal-muted p-4 text-center text-terminal-dim cursor-pointer transition-all duration-100 hover:border-terminal-text hover:text-terminal-text hover:bg-[rgb(255_176_0_/_0.05)]">+ ADD CUSTOM OR LOCAL PROVIDER</button>
+            <div class="flex gap-4 mb-8">
+                <button id="sendButton" class="btn-primary flex-1 py-3 text-sm disabled:opacity-40 disabled:cursor-not-allowed">Send to APIs</button>
+            </div>
+
+            <div class="box-with-title">
+                <div class="box-title">Results</div>
+                <div class="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-5" id="resultsGrid"></div>
             </div>
         </div>
 
-        <div class="terminal-box mb-6">
-            <div class="terminal-box-title">┤ IMPORT/EXPORT ├</div>
-            <div class="flex flex-wrap gap-2">
-                <button id="downloadPrompts" class="terminal-btn">DOWNLOAD JSON</button>
-                <button id="uploadPrompts" class="terminal-btn">UPLOAD JSON</button>
-                <button id="loadFromGist" class="terminal-btn">LOAD FROM GIST</button>
-            </div>
-            <input type="file" id="uploadPromptsFile" accept="application/json" class="hidden">
-            <div id="gistLoader" class="hidden mt-4 pt-4 border-t border-terminal-muted flex flex-col gap-2">
-                <label for="gistInput" class="text-[11px] text-terminal-dim uppercase tracking-wide">Gist URL or ID</label>
-                <div class="flex flex-col sm:flex-row gap-2">
-                    <input id="gistInput" type="text" placeholder="> https://gist.github.com/username/abcdef... or gist id" class="terminal-input flex-1">
-                    <button id="fetchGistButton" class="terminal-btn-primary">FETCH</button>
+        <div id="tab-security" class="app-tab hidden">
+            <div class="box-with-title mb-6">
+                <div class="box-title">Data Security</div>
+                <div class="space-y-3 text-sm text-base-01 leading-relaxed">
+                    <p>All prompts, responses, and API keys are stored in your browser's local storage on this device. There is no server-side storage for this tool.</p>
+                    <p>API requests are sent directly from your browser to each LLM provider. There is no intermediary service adding extra security or filtering between you and the provider.</p>
                 </div>
-                <div id="gistStatus" class="text-[11px] text-terminal-dim"></div>
+                <div class="mt-4 border border-base-1/20 p-4 text-sm text-base-01 bg-base-2 rounded">
+                    <div class="text-base-00 font-semibold uppercase tracking-wider text-xs mb-2">Local Storage Keys</div>
+                    <div class="grid gap-1 sm:grid-cols-2 text-[13px]">
+                        <div>OpenAI → openai_api_key</div>
+                        <div>Anthropic → anthropic_api_key</div>
+                        <div>Gemini → gemini_api_key</div>
+                        <div>OpenRouter → openrouter_api_key</div>
+                        <div>Custom Providers → custom_providers</div>
+                        <div>Selected Models → selected_models_by_provider</div>
+                        <div>Saved Models → *_saved_models</div>
+                        <div>Prompts → saved_system_prompt / saved_conversation_rounds</div>
+                    </div>
+                </div>
             </div>
-        </div>
 
-        <div class="terminal-box mb-6">
-            <div class="terminal-box-title">┤ SYSTEM PROMPT ├</div>
-            <textarea id="systemPrompt" placeholder="> Enter your system prompt here..." class="terminal-input resize-y min-h-[100px]">You are a helpful assistant.</textarea>
-        </div>
-
-        <!-- Conversation Rounds Section -->
-        <div class="terminal-box mb-6">
-            <div class="terminal-box-title">┤ CONVERSATION ROUNDS ├</div>
-            <div class="flex justify-end mb-4">
-                <button id="addConversationRound" class="terminal-btn">+ ADD ROUND</button>
+            <div class="box-with-title">
+                <div class="box-title">Stored API Keys</div>
+                <div id="securityKeyManager" class="space-y-3"></div>
             </div>
-            <div id="conversationRoundsContainer" class="space-y-3"></div>
-        </div>
-
-        <div class="flex gap-4 mb-8">
-            <button id="sendButton" class="terminal-btn-primary flex-1 py-3 text-[13px] disabled:opacity-40 disabled:cursor-not-allowed">SEND TO APIS</button>
-        </div>
-
-        <div class="terminal-box">
-            <div class="terminal-box-title">┤ RESULTS ├</div>
-            <div class="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-5" id="resultsGrid"></div>
         </div>
     </div>
 
@@ -584,6 +650,18 @@
             return custom?.name?.trim() || 'Custom Provider';
         }
 
+        function getProviderStorageLabel(providerId) {
+            const config = API_CONFIGS[providerId];
+            if (config && config.storageKey) {
+                return config.storageKey;
+            }
+            const custom = getCustomProvider(providerId);
+            if (custom) {
+                return CUSTOM_PROVIDERS_STORAGE_KEY;
+            }
+            return 'not stored';
+        }
+
         function renderCustomProviders() {
             const container = document.getElementById('customProvidersContainer');
             if (!container) return;
@@ -594,14 +672,14 @@
 
             if (!customProviders.length) {
                 const empty = document.createElement('div');
-                empty.className = 'p-3 border border-terminal-muted text-[11px] text-terminal-dim';
+                empty.className = 'p-3 border border-base-1/20 text-sm text-base-1 bg-base-2 rounded';
                 empty.textContent = 'No custom providers yet. Add one to point at a local or self-hosted OpenAI-compatible API.';
                 container.appendChild(empty);
             }
 
             customProviders.forEach(provider => {
                 const card = document.createElement('div');
-                card.className = 'p-3 border-l-highlight';
+                card.className = 'provider-item';
                 card.dataset.providerId = provider.id;
 
                 const checkboxId = `${provider.id}-provider`;
@@ -612,35 +690,35 @@
 
                 card.innerHTML = `
                     <div class="flex items-center gap-3 cursor-pointer">
-                        <input type="checkbox" id="${checkboxId}" class="provider-checkbox terminal-checkbox" data-provider="${provider.id}">
-                        <label for="${checkboxId}" class="cursor-pointer text-terminal-text" data-provider-label="${provider.id}">Custom Provider</label>
-                        <span class="key-indicator items-center gap-1.5 ml-auto text-[10px] text-terminal-green" data-provider="${provider.id}" title="API key saved">
+                        <input type="checkbox" id="${checkboxId}" class="provider-checkbox checkbox" data-provider="${provider.id}">
+                        <label for="${checkboxId}" class="cursor-pointer text-base-00 font-semibold" data-provider-label="${provider.id}">Custom Provider</label>
+                        <span class="key-indicator items-center gap-1.5 ml-auto text-[12px] text-sol-green" data-provider="${provider.id}" title="API key saved">
                             <span>●</span>
-                            KEY SAVED
+                            Key Saved
                         </span>
-                        <button class="clear-key-button terminal-btn-danger text-[10px] px-2 py-1" data-provider="${provider.id}">CLEAR KEY</button>
+                        <button class="clear-key-button btn-danger text-xs px-2 py-1" data-provider="${provider.id}">Clear</button>
                     </div>
                     <div class="grid sm:grid-cols-2 gap-3 mt-3">
                         <div class="space-y-1.5">
-                            <label class="text-[11px] text-terminal-dim uppercase tracking-wide">Name (optional)</label>
-                            <input type="text" data-provider-id="${provider.id}" data-field="name" class="terminal-input" placeholder="> Custom Provider">
+                            <label class="text-xs text-base-1 uppercase tracking-wider">Name (optional)</label>
+                            <input type="text" data-provider-id="${provider.id}" data-field="name" class="form-input" placeholder="Custom Provider">
                         </div>
                         <div class="space-y-1.5">
-                            <label class="text-[11px] text-terminal-dim uppercase tracking-wide">API Endpoint</label>
-                            <input type="text" data-provider-id="${provider.id}" data-field="endpoint" class="terminal-input" placeholder="> http://localhost:11434/v1">
+                            <label class="text-xs text-base-1 uppercase tracking-wider">API Endpoint</label>
+                            <input type="text" data-provider-id="${provider.id}" data-field="endpoint" class="form-input" placeholder="http://localhost:11434/v1">
                         </div>
                         <div class="sm:col-span-2 space-y-1.5">
-                            <label class="text-[11px] text-terminal-dim uppercase tracking-wide">API Key (optional)</label>
-                            <input type="password" data-provider-id="${provider.id}" data-field="apiKey" class="terminal-input" placeholder="> Bearer token for this endpoint">
-                            <p class="text-[10px] text-terminal-muted mt-1">Stored locally and sent as a Bearer token only if provided.</p>
+                            <label class="text-xs text-base-1 uppercase tracking-wider">API Key (optional)</label>
+                            <input type="password" data-provider-id="${provider.id}" data-field="apiKey" class="form-input" placeholder="Bearer token for this endpoint">
+                            <p class="text-xs text-base-1 mt-1">Stored locally and sent as a Bearer token only if provided.</p>
                         </div>
                     </div>
-                    <div class="model-options ml-0 sm:ml-6 mt-3 pt-3 border-t border-terminal-muted" id="${provider.id}-models">
-                        <div class="text-[11px] text-terminal-dim uppercase tracking-wide mb-2">Saved models</div>
+                    <div class="model-options ml-0 sm:ml-6 mt-3 pt-3 border-t border-base-1/20" id="${provider.id}-models">
+                        <div class="text-xs text-base-1 uppercase tracking-wider mb-2">Saved models</div>
                         <div class="saved-models flex flex-col gap-1.5" id="${provider.id}-saved-models"></div>
                         <div class="mt-2 flex items-center gap-2">
-                            <input type="text" id="${provider.id}-custom" placeholder="> Model name (e.g., llama3.1:latest)..." data-provider="${provider.id}" class="terminal-input flex-1">
-                            <button id="${provider.id}-save-model" class="terminal-btn-success">SAVE</button>
+                            <input type="text" id="${provider.id}-custom" placeholder="Model name (e.g., llama3.1:latest)..." data-provider="${provider.id}" class="form-input flex-1">
+                            <button id="${provider.id}-save-model" class="btn-success">Save</button>
                         </div>
                     </div>
                 `;
@@ -698,6 +776,9 @@
             renderAllSavedModels();
             applySelectedModelsToCheckboxes();
             updateAllKeyIndicators();
+            if (document.getElementById('tab-security')?.classList.contains('hidden') === false) {
+                renderSecurityKeyManager();
+            }
         }
 
         function addCustomProvider() {
@@ -833,7 +914,7 @@
             const models = getSavedModels(provider);
 
             if (models.length === 0) {
-                container.innerHTML = '<div class="text-terminal-muted text-[11px]">No saved models yet</div>';
+                container.innerHTML = '<div class="text-base-1 text-[13px]">No saved models yet</div>';
                 return;
             }
 
@@ -845,18 +926,18 @@
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
                 checkbox.id = checkboxId;
-                checkbox.className = 'terminal-checkbox';
+                checkbox.className = 'checkbox';
                 checkbox.dataset.provider = provider;
                 checkbox.dataset.model = model;
                 checkbox.checked = previouslyChecked.has(model) || isModelSelected(provider, model);
 
                 const label = document.createElement('label');
                 label.setAttribute('for', checkboxId);
-                label.className = 'cursor-pointer text-terminal-dim text-[12px]';
+                label.className = 'cursor-pointer text-base-01 text-[13px]';
                 label.textContent = model;
 
                 const deleteButton = document.createElement('button');
-                deleteButton.className = 'terminal-btn-danger text-[10px] px-2 py-1';
+                deleteButton.className = 'btn-danger text-xs px-2 py-1';
                 deleteButton.textContent = '✕';
                 deleteButton.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -994,6 +1075,7 @@
 
             renderCustomProviders();
             getAllProviderIds().forEach(attachSaveButtonHandler);
+            setupAppTabs();
 
             const params = new URLSearchParams(window.location.search);
             const gistParam = extractGistId(params.get('gist') || '');
@@ -1004,7 +1086,7 @@
                 if (gistInput) {
                     gistInput.value = gistParam;
                 }
-                setGistStatus('Loading gist...', 'text-terminal-dim');
+                setGistStatus('Loading gist...', 'text-base-1');
                 fetchGistAndImport(gistParam, setGistStatus).then(success => {
                     if (success) {
                         updateUrlWithGistId(gistParam);
@@ -1015,24 +1097,49 @@
             }
         });
 
+        function setupAppTabs() {
+            const tabButtons = document.querySelectorAll('.app-tab-btn');
+            const tabs = document.querySelectorAll('.app-tab');
+            if (!tabButtons.length || !tabs.length) return;
+
+            const setActiveTab = (tabId) => {
+                tabs.forEach(tab => {
+                    tab.classList.toggle('hidden', tab.id !== `tab-${tabId}`);
+                });
+                tabButtons.forEach(button => {
+                    const active = button.dataset.tab === tabId;
+                    button.className = `app-tab-btn ${active ? 'btn-primary' : 'btn-secondary'} text-sm`;
+                });
+                if (tabId === 'security') {
+                    renderSecurityKeyManager();
+                }
+            };
+
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => setActiveTab(button.dataset.tab));
+            });
+
+            setActiveTab('comparator');
+        }
+
         // Function to create a conversation round element
         function createConversationRoundElement(roundId, role, message) {
             const roundElement = document.createElement('div');
-            roundElement.className = 'border-l-[3px] border-terminal-text p-3';
+            roundElement.className = 'border-l-[3px] border-sol-cyan p-3 bg-base-2 rounded';
             roundElement.dataset.roundId = roundId;
 
             roundElement.innerHTML = `
                 <div class="flex justify-between items-center mb-2">
                     <div class="flex items-center gap-2">
-                        <span class="text-terminal-text-deep text-[11px]">${role === 'user' ? '>>>' : '<<<'}</span>
-                        <select class="bg-terminal-bg border border-terminal-muted text-terminal-text px-2 py-1 text-[11px] uppercase tracking-wide cursor-pointer outline-none focus:border-terminal-text" data-round-id="${roundId}">
-                            <option value="user" ${role === 'user' ? 'selected' : ''}>USER</option>
-                            <option value="assistant" ${role === 'assistant' ? 'selected' : ''}>ASSISTANT</option>
+                        <span class="text-sol-cyan text-sm font-semibold">${role === 'user' ? '→' : '←'}</span>
+                        <select class="bg-base-3 border border-base-1/20 text-base-00 px-2 py-1 text-xs uppercase tracking-wider cursor-pointer outline-none focus:border-sol-cyan focus:ring-[3px] focus:ring-sol-cyan/20 rounded" data-round-id="${roundId}">
+                            <option value="user" ${role === 'user' ? 'selected' : ''}>User</option>
+                            <option value="assistant" ${role === 'assistant' ? 'selected' : ''}>Assistant</option>
                         </select>
                     </div>
-                    <button class="terminal-btn-danger text-[10px] px-2 py-1" data-round-id="${roundId}">DELETE</button>
+                    <button class="btn-danger text-xs px-2 py-1" data-round-id="${roundId}">Delete</button>
                 </div>
-                <textarea class="terminal-input resize-y min-h-[80px]" placeholder="> Enter message content..." data-round-id="${roundId}">${message || ''}</textarea>
+                <textarea class="form-input resize-y min-h-[80px]" placeholder="Enter message content..." data-round-id="${roundId}">${message || ''}</textarea>
             `;
 
             return roundElement;
@@ -1142,6 +1249,87 @@
             getAllProviderIds().forEach(updateKeyIndicator);
         }
 
+        function renderSecurityKeyManager() {
+            const container = document.getElementById('securityKeyManager');
+            if (!container) return;
+
+            container.innerHTML = '';
+            const providers = getAllProviderIds();
+
+            if (!providers.length) {
+                const empty = document.createElement('div');
+                empty.className = 'text-sm text-base-1';
+                empty.textContent = 'No providers detected.';
+                container.appendChild(empty);
+                return;
+            }
+
+            providers.forEach(provider => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'border border-base-1/20 p-4 bg-base-2 rounded';
+
+                const displayName = getProviderDisplayName(provider);
+                const storedKey = getStoredApiKey(provider);
+                const storageLabel = getProviderStorageLabel(provider);
+
+                wrapper.innerHTML = `
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <div>
+                            <div class="text-base-00 text-sm font-semibold">${displayName}</div>
+                            <div class="text-xs text-base-1">Storage: ${storageLabel}</div>
+                        </div>
+                        <div class="text-sm ${storedKey ? 'text-sol-green' : 'text-base-1'}">${storedKey ? 'Key Saved' : 'No Key'}</div>
+                    </div>
+                    <div class="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                        <input type="password" class="form-input" data-security-provider="${provider}" placeholder="Paste new key...">
+                        <button class="btn-success text-xs" data-security-save="${provider}">Save</button>
+                        <button class="btn-danger text-xs" data-security-clear="${provider}">Clear</button>
+                    </div>
+                    <div class="mt-2 text-xs text-base-1">Replace the stored key or clear it to remove from local storage.</div>
+                `;
+
+                container.appendChild(wrapper);
+                const input = wrapper.querySelector(`input[data-security-provider="${provider}"]`);
+                if (input) {
+                    input.value = storedKey;
+                }
+            });
+
+            container.querySelectorAll('[data-security-save]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const provider = button.dataset.securitySave;
+                    const input = container.querySelector(`input[data-security-provider="${provider}"]`);
+                    if (!provider || !input) return;
+                    const nextValue = input.value.trim();
+                    setStoredApiKey(provider, nextValue);
+                    updateKeyIndicator(provider);
+                    const customApiInput = document.querySelector(`input[data-provider-id="${provider}"][data-field="apiKey"]`);
+                    if (customApiInput) {
+                        customApiInput.value = nextValue;
+                    }
+                    renderSecurityKeyManager();
+                });
+            });
+
+            container.querySelectorAll('[data-security-clear]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const provider = button.dataset.securityClear;
+                    if (!provider) return;
+                    setStoredApiKey(provider, '');
+                    updateKeyIndicator(provider);
+                    const input = container.querySelector(`input[data-security-provider="${provider}"]`);
+                    if (input) {
+                        input.value = '';
+                    }
+                    const customApiInput = document.querySelector(`input[data-provider-id="${provider}"][data-field="apiKey"]`);
+                    if (customApiInput) {
+                        customApiInput.value = '';
+                    }
+                    renderSecurityKeyManager();
+                });
+            });
+        }
+
         function getApiKey(provider) {
             const config = API_CONFIGS[provider];
             if (!config) return '';
@@ -1153,6 +1341,9 @@
                 if (apiKey) {
                     setStoredApiKey(provider, apiKey);
                     updateKeyIndicator(provider);
+                    if (document.getElementById('tab-security')?.classList.contains('hidden') === false) {
+                        renderSecurityKeyManager();
+                    }
                 }
             }
             
@@ -1162,34 +1353,37 @@
         function clearApiKey(provider) {
             setStoredApiKey(provider, '');
             updateKeyIndicator(provider);
+            if (document.getElementById('tab-security')?.classList.contains('hidden') === false) {
+                renderSecurityKeyManager();
+            }
         }
 
         function createResultCard(provider, model) {
             const cardId = `result-${provider}-${model.replace(/[^a-zA-Z0-9]/g, '-')}`;
             const card = document.createElement('div');
-            card.className = 'border border-terminal-muted p-4';
+            card.className = 'border border-base-1/20 p-4 bg-base-2 rounded shadow-sm';
             card.id = cardId;
             card.innerHTML = `
-                <div class="flex items-center justify-between mb-4 pb-2.5 border-b border-terminal-muted">
+                <div class="flex items-center justify-between mb-4 pb-2.5 border-b border-base-1/20">
                     <div>
-                        <div class="text-terminal-text text-[13px] uppercase tracking-wide">${getProviderDisplayName(provider)}</div>
-                        <div class="text-[10px] text-terminal-dim mt-0.5">${model}</div>
+                        <div class="text-base-00 text-sm font-semibold">${getProviderDisplayName(provider)}</div>
+                        <div class="text-[13px] text-base-1 mt-0.5">${model}</div>
                     </div>
-                    <div class="result-status text-[10px] text-terminal-success">LOADING...</div>
+                    <div class="result-status text-xs text-sol-cyan">Loading...</div>
                 </div>
-                <div class="result-content text-terminal-dim leading-relaxed">
+                <div class="result-content text-base-01 leading-relaxed">
                     <div class="flex gap-2 mb-3">
-                        <button class="result-tab-btn terminal-btn-primary text-[10px]" data-tab="text">TEXT</button>
-                        <button class="result-tab-btn terminal-btn text-[10px]" data-tab="markdown">MARKDOWN</button>
-                        <button class="result-tab-btn terminal-btn text-[10px]" data-tab="cost">COST</button>
+                        <button class="result-tab-btn btn-primary text-xs" data-tab="text">Text</button>
+                        <button class="result-tab-btn btn-secondary text-xs" data-tab="markdown">Markdown</button>
+                        <button class="result-tab-btn btn-secondary text-xs" data-tab="cost">Cost</button>
                     </div>
-                    <div class="border border-terminal-muted p-3 min-h-[120px] bg-[rgb(255_176_0_/_0.02)]">
-                        <div class="tab-panel whitespace-pre-wrap break-words text-[12px]" data-tab="text">
-                            <div class="loading inline-block w-4 h-4 border-2 border-terminal-muted border-t-terminal-text rounded-full"></div>
+                    <div class="border border-base-1/20 p-3 min-h-[120px] bg-base-3 rounded">
+                        <div class="tab-panel whitespace-pre-wrap break-words text-[13px]" data-tab="text">
+                            <div class="loading inline-block w-4 h-4 border-2 border-base-1 border-t-sol-cyan rounded-full"></div>
                         </div>
-                        <div class="tab-panel hidden prose prose-sm max-w-none text-terminal-text text-[12px]" data-tab="markdown"></div>
-                        <div class="tab-panel hidden text-[11px]" data-tab="cost">
-                            <p class="text-terminal-dim">Cost details will appear after a successful response.</p>
+                        <div class="tab-panel hidden prose prose-sm max-w-none text-base-00 text-[13px]" data-tab="markdown"></div>
+                        <div class="tab-panel hidden text-[13px]" data-tab="cost">
+                            <p class="text-base-1">Cost details will appear after a successful response.</p>
                         </div>
                     </div>
                 </div>
@@ -1202,9 +1396,9 @@
                 tabButtons.forEach(btn => {
                     const isActive = btn.dataset.tab === tab;
                     if (isActive) {
-                        btn.className = 'result-tab-btn terminal-btn-primary text-[10px]';
+                        btn.className = 'result-tab-btn btn-primary text-xs';
                     } else {
-                        btn.className = 'result-tab-btn terminal-btn text-[10px]';
+                        btn.className = 'result-tab-btn btn-secondary text-xs';
                     }
                 });
 
@@ -1229,15 +1423,15 @@
             const costPanel = card.querySelector('.tab-panel[data-tab="cost"]');
 
             const statusClasses = status === 'success'
-                ? 'text-[10px] text-terminal-green'
-                : 'text-[10px] text-terminal-error';
+                ? 'text-xs text-sol-green'
+                : 'text-xs text-sol-red';
             statusEl.className = `result-status ${statusClasses}`;
-            const statusLabel = status === 'success' ? '● OK' : '● ERR';
+            const statusLabel = status === 'success' ? '● OK' : '● Error';
             const durationLabel = Number.isFinite(durationMs) ? `${Math.round(durationMs)}ms` : '';
             statusEl.textContent = durationLabel ? `${statusLabel} ${durationLabel}` : statusLabel;
 
             if (costPanel) {
-                costPanel.innerHTML = '<p class="text-terminal-dim">Cost details will appear after a successful response.</p>';
+                costPanel.innerHTML = '<p class="text-base-1">Cost details will appear after a successful response.</p>';
             }
 
             const rawText = typeof content === 'string' ? content : '';
@@ -1252,7 +1446,7 @@
                         markdownPanel.textContent = rawText;
                     }
                 } else {
-                    markdownPanel.innerHTML = `<p class="text-terminal-error">${rawText || 'No content'}</p>`;
+                    markdownPanel.innerHTML = `<p class="text-sol-red">${rawText || 'No content'}</p>`;
                 }
             }
 
@@ -1265,27 +1459,27 @@
                 const pricing = calculatePricing(provider, model, inputTokens, outputTokens);
 
                 // Build pricing display
-                const priceClass = pricing.isUnknown ? 'text-terminal-error italic' : '';
+                const priceClass = pricing.isUnknown ? 'text-sol-red italic' : '';
                 const tokenInfoHTML = `
-                    <div class="p-2.5 border border-terminal-muted text-[11px] leading-snug">
+                    <div class="p-2.5 border border-base-1/20 text-[13px] leading-snug bg-base-2 rounded">
                         <div class="flex justify-between py-0.5">
-                            <span class="text-terminal-dim uppercase">Input Tokens:</span>
-                            <span class="text-terminal-text">${inputTokens.toLocaleString()}</span>
+                            <span class="text-base-1 uppercase text-xs tracking-wider">Input Tokens:</span>
+                            <span class="text-base-00">${inputTokens.toLocaleString()}</span>
                         </div>
                         <div class="flex justify-between py-0.5">
-                            <span class="text-terminal-dim uppercase">Input Price:</span>
-                            <span class="text-terminal-text ${priceClass}">${pricing.inputPrice}</span>
+                            <span class="text-base-1 uppercase text-xs tracking-wider">Input Price:</span>
+                            <span class="text-base-00 ${priceClass}">${pricing.inputPrice}</span>
                         </div>
                         <div class="flex justify-between py-0.5">
-                            <span class="text-terminal-dim uppercase">Output Tokens:</span>
-                            <span class="text-terminal-text">${outputTokens.toLocaleString()}</span>
+                            <span class="text-base-1 uppercase text-xs tracking-wider">Output Tokens:</span>
+                            <span class="text-base-00">${outputTokens.toLocaleString()}</span>
                         </div>
                         <div class="flex justify-between py-0.5">
-                            <span class="text-terminal-dim uppercase">Output Price:</span>
-                            <span class="text-terminal-text ${priceClass}">${pricing.outputPrice}</span>
+                            <span class="text-base-1 uppercase text-xs tracking-wider">Output Price:</span>
+                            <span class="text-base-00 ${priceClass}">${pricing.outputPrice}</span>
                         </div>
-                        <div class="flex justify-between py-0.5 pt-1.5 border-t border-terminal-muted text-terminal-text-deep">
-                            <span class="uppercase">Total Price:</span>
+                        <div class="flex justify-between py-0.5 pt-1.5 border-t border-base-1/20 text-base-00 font-semibold">
+                            <span class="uppercase text-xs tracking-wider">Total Price:</span>
                             <span class="${priceClass}">${pricing.totalPrice}</span>
                         </div>
                     </div>
@@ -1295,7 +1489,7 @@
                     costPanel.innerHTML = tokenInfoHTML;
                 }
             } else if (costPanel) {
-                costPanel.innerHTML = '<p class="text-terminal-dim">Cost details unavailable.</p>';
+                costPanel.innerHTML = '<p class="text-base-1">Cost details unavailable.</p>';
             }
         }
 
@@ -1611,7 +1805,7 @@
             }
 
             const octokit = new window.Octokit();
-            setStatus('Loading gist...', 'text-terminal-dim');
+            setStatus('Loading gist...', 'text-base-1');
             try {
                 const response = await octokit.request('GET /gists/{gist_id}', {
                     gist_id: gistId,
@@ -1635,19 +1829,19 @@
 
                 const parsed = JSON.parse(selectedFile.content);
                 importPromptsData(parsed);
-                setStatus(`Loaded from ${selectedFile.filename || 'gist file'}`, 'text-terminal-green');
+                setStatus(`Loaded from ${selectedFile.filename || 'gist file'}`, 'text-sol-green');
                 return true;
             } catch (error) {
                 console.error('Gist load failed:', error);
                 alert('Failed to load gist. Please check the URL/ID and try again.');
-                setStatus('Failed to load gist.', 'text-terminal-error');
+                setStatus('Failed to load gist.', 'text-sol-red');
                 return false;
             }
         }
 
-        function setGistStatus(message, cls = 'text-terminal-dim') {
+        function setGistStatus(message, cls = 'text-base-1') {
             if (gistStatus) {
-                gistStatus.className = `text-[11px] ${cls}`;
+                gistStatus.className = `text-xs ${cls}`;
                 gistStatus.textContent = message;
             }
         }

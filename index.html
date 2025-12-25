@@ -1,149 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Useful Tools</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <style type="text/tailwindcss">
-        @theme {
-            /* Amber Terminal Color Palette */
-            --color-terminal-bg: #0a0a08;
-            --color-terminal-text: #ffb000;
-            --color-terminal-text-deep: #ff8c00;
-            --color-terminal-muted: #664400;
-            --color-terminal-dim: #996600;
-            --color-terminal-error: #ff6600;
-            --color-terminal-success: #ddaa00;
-            --color-terminal-green: #00ff00;
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Useful Tools</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cousine:wght@400;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style type="text/tailwindcss">
+    @theme {
+      --color-base-3: #fdf6e3;
+      --color-base-2: #eee8d5;
+      --color-base-1: #93a1a1;
+      --color-base-00: #657b83;
+      --color-base-01: #586e75;
 
-            /* Typography */
-            --font-family-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Courier New', monospace;
-            --line-height-terminal: 1.6;
+      --color-sol-cyan: #2aa198;
 
-            /* Effects */
-            --glow-sm: 0 0 5px rgb(255 176 0 / 0.5);
-            --glow-md: 0 0 10px rgb(255 176 0 / 0.4);
-            --glow-lg: 0 0 20px rgb(255 176 0 / 0.3);
-
-            /* Screen curvature */
-            --radius-screen: 8px;
-        }
-
-        @layer base {
-            body {
-                @apply bg-terminal-bg text-terminal-text font-mono antialiased;
-                line-height: 1.6;
-            }
-        }
-
-        @layer utilities {
-            .text-glow {
-                text-shadow: var(--glow-sm), var(--glow-md);
-            }
-
-            .text-glow-strong {
-                text-shadow:
-                    0 0 5px rgb(255 176 0 / 0.8),
-                    0 0 10px rgb(255 176 0 / 0.4),
-                    0 0 15px rgb(255 176 0 / 0.2);
-            }
-
-            .box-glow {
-                box-shadow: var(--glow-lg), inset 0 0 100px rgb(255 176 0 / 0.02);
-            }
-
-            /* CRT Screen effect */
-            .crt-screen {
-                @apply border-2 border-terminal-text;
-                border-radius: var(--radius-screen);
-                box-shadow: var(--glow-lg), inset 0 0 100px rgb(255 176 0 / 0.02);
-                position: relative;
-            }
-
-            /* Scanlines overlay */
-            .scanlines::before {
-                content: '';
-                position: absolute;
-                inset: 0;
-                background: repeating-linear-gradient(
-                    0deg,
-                    rgb(0 0 0 / 0.15),
-                    rgb(0 0 0 / 0.15) 1px,
-                    transparent 1px,
-                    transparent 2px
-                );
-                pointer-events: none;
-                z-index: 10;
-                border-radius: var(--radius-screen);
-            }
-
-            /* Terminal box borders */
-            .terminal-box {
-                @apply border border-terminal-text p-4 relative;
-                background: rgb(255 176 0 / 0.02);
-            }
-
-            /* Box title positioned on border */
-            .terminal-box-title {
-                @apply absolute -top-2.5 left-4 bg-terminal-bg px-2 text-xs text-terminal-text-deep uppercase tracking-wider;
-            }
-
-            /* Tool link styling */
-            .tool-link {
-                @apply block p-4 border-l-2 border-terminal-muted transition-all duration-100;
-            }
-
-            .tool-link:hover {
-                @apply border-terminal-text;
-                background: rgb(255 176 0 / 0.05);
-            }
-
-            .tool-link:hover .tool-title {
-                @apply text-terminal-text-deep;
-                text-shadow: var(--glow-sm);
-            }
-
-            /* Cursor blink animation */
-            @keyframes blink {
-                0%, 50% { opacity: 1; }
-                51%, 100% { opacity: 0; }
-            }
-
-            .cursor-blink {
-                animation: blink 1s linear infinite;
-            }
-        }
-    </style>
+      --font-mono: 'Cousine', 'Monaco', 'Consolas', monospace;
+    }
+  </style>
 </head>
-<body class="min-h-screen p-5">
-    <div class="max-w-4xl mx-auto crt-screen scanlines p-8">
-        <h1 class="text-[18px] uppercase tracking-[2px] text-glow mb-2 text-center">USEFUL TOOLS<span class="cursor-blink">_</span></h1>
-        <p class="text-center text-terminal-dim text-[11px] mb-8">A collection of developer utilities</p>
-
-        <div class="terminal-box">
-            <div class="terminal-box-title">┤ AVAILABLE TOOLS ├</div>
-
-            <div class="space-y-4">
-                <a href="llm_comparator.html" class="tool-link">
-                    <div class="flex items-start gap-3">
-                        <span class="text-terminal-text-deep text-[12px]">▶</span>
-                        <div>
-                            <div class="tool-title text-terminal-text text-[13px] uppercase tracking-wide mb-1">LLM API Comparator</div>
-                            <p class="text-terminal-dim text-[11px] leading-relaxed">
-                                Send prompts to multiple LLM APIs concurrently and compare responses side-by-side.
-                                Supports OpenAI, Anthropic, Google Gemini, OpenRouter, and custom OpenAI-compatible endpoints.
-                                Includes token counting and cost estimation.
-                            </p>
-                        </div>
-                    </div>
-                </a>
-            </div>
-        </div>
-
-        <div class="text-center text-terminal-muted text-[10px] mt-8">
-            ─────────────────────────────────────────────
-        </div>
+<body class="font-mono bg-base-3 text-base-00 min-h-screen">
+  <main class="max-w-[900px] mx-auto px-6 py-20">
+    <h1 class="text-3xl font-bold tracking-tight mb-6">Useful Tools</h1>
+    <div class="bg-base-2 border border-base-1/20 rounded p-6">
+      <a href="llm_comparator.html" class="text-sol-cyan text-lg font-semibold no-underline">
+        LLM API Comparator
+      </a>
+      <p class="text-sm text-base-01 leading-relaxed mt-2">
+        Send prompts to multiple LLM APIs concurrently and compare responses side-by-side.
+      </p>
     </div>
+  </main>
 </body>
 </html>
