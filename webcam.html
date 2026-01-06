@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASCII Webcam Shader</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #1a3a6e;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        #video {
+            display: none;
+        }
+        
+        #canvas {
+            display: none;
+        }
+        
+        #ascii {
+            font-size: 8px;
+            line-height: 8px;
+            letter-spacing: 0px;
+            white-space: pre;
+            color: #d4af37;
+            text-shadow: 0 0 3px rgba(212, 175, 55, 0.5);
+            background: linear-gradient(135deg, #2a4a8e 0%, #1a3a6e 50%, #2a4a8e 100%);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        #controls {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(26, 58, 110, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            color: #d4af37;
+            z-index: 100;
+            font-size: 12px;
+        }
+        
+        #controls button {
+            background: #d4af37;
+            border: none;
+            padding: 8px 15px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            color: #1a3a6e;
+            font-weight: bold;
+        }
+        
+        #controls button:hover {
+            background: #e8d7a0;
+        }
+        
+        #controls input[type="range"] {
+            width: 150px;
+            margin: 5px;
+        }
+        
+        .control-group {
+            margin: 10px 0;
+        }
+        
+        #error {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            display: none;
+            z-index: 200;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas"></canvas>
+        <pre id="ascii"></pre>
+    </div>
+    
+    <div id="controls">
+        <div><strong>ASCII WEBCAM SHADER</strong></div>
+        <div class="control-group">
+            <button id="startBtn">Start Camera</button>
+            <button id="invertBtn">Invert</button>
+        </div>
+        <div class="control-group">
+            <label>Resolution: <span id="resValue">80</span></label><br>
+            <input type="range" id="resolution" min="40" max="150" value="80">
+        </div>
+        <div class="control-group">
+            <label>Brightness: <span id="brightValue">1.0</span></label><br>
+            <input type="range" id="brightness" min="0.5" max="2.0" step="0.1" value="1.0">
+        </div>
+        <div class="control-group">
+            <label>Contrast: <span id="contrastValue">1.0</span></label><br>
+            <input type="range" id="contrast" min="0.5" max="2.0" step="0.1" value="1.0">
+        </div>
+        <div class="control-group">
+            <label>Font Size: <span id="fontValue">8</span>px</label><br>
+            <input type="range" id="fontSize" min="4" max="16" step="1" value="8">
+        </div>
+    </div>
+    
+    <div id="error"></div>
+    
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const ascii = document.getElementById('ascii');
+        const errorDiv = document.getElementById('error');
+        
+        // ASCII characters from darkest to lightest
+        const asciiChars = [
+            '@', '#', 'G', 'O', '8', '&', '%', '$', '0', '≈', '~', 
+            '=', '+', '*', ':', '.', ' '
+        ];
+        
+        let isInverted = false;
+        let resolution = 80;
+        let brightnessVal = 1.0;
+        let contrastVal = 1.0;
+        let fontSizeVal = 8;
+        
+        // Controls
+        document.getElementById('startBtn').addEventListener('click', startCamera);
+        document.getElementById('invertBtn').addEventListener('click', () => {
+            isInverted = !isInverted;
+        });
+        
+        document.getElementById('resolution').addEventListener('input', (e) => {
+            resolution = parseInt(e.target.value);
+            document.getElementById('resValue').textContent = resolution;
+        });
+        
+        document.getElementById('brightness').addEventListener('input', (e) => {
+            brightnessVal = parseFloat(e.target.value);
+            document.getElementById('brightValue').textContent = brightnessVal.toFixed(1);
+        });
+        
+        document.getElementById('contrast').addEventListener('input', (e) => {
+            contrastVal = parseFloat(e.target.value);
+            document.getElementById('contrastValue').textContent = contrastVal.toFixed(1);
+        });
+        
+        document.getElementById('fontSize').addEventListener('input', (e) => {
+            fontSizeVal = parseInt(e.target.value);
+            document.getElementById('fontValue').textContent = fontSizeVal;
+            ascii.style.fontSize = fontSizeVal + 'px';
+            ascii.style.lineHeight = fontSizeVal + 'px';
+        });
+        
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
+                
+                video.srcObject = stream;
+                video.play();
+                
+                video.addEventListener('loadedmetadata', () => {
+                    render();
+                });
+                
+                document.getElementById('startBtn').textContent = 'Camera Active';
+                document.getElementById('startBtn').disabled = true;
+            } catch (err) {
+                showError('Camera access denied: ' + err.message);
+            }
+        }
+        
+        function showError(message) {
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+        
+        function getBrightness(r, g, b) {
+            // Apply brightness and contrast adjustments
+            r = Math.min(255, Math.max(0, r * brightnessVal));
+            g = Math.min(255, Math.max(0, g * brightnessVal));
+            b = Math.min(255, Math.max(0, b * brightnessVal));
+            
+            // Calculate luminance
+            let brightness = (0.299 * r + 0.587 * g + 0.114 * b);
+            
+            // Apply contrast
+            brightness = ((brightness - 128) * contrastVal) + 128;
+            brightness = Math.min(255, Math.max(0, brightness));
+            
+            return brightness;
+        }
+        
+        function pixelToAscii(brightness) {
+            if (isInverted) {
+                brightness = 255 - brightness;
+            }
+            const index = Math.floor((brightness / 255) * (asciiChars.length - 1));
+            return asciiChars[index];
+        }
+        
+        function render() {
+            if (!video.videoWidth) {
+                requestAnimationFrame(render);
+                return;
+            }
+            
+            // Calculate dimensions maintaining aspect ratio
+            const aspectRatio = video.videoHeight / video.videoWidth;
+            const width = resolution;
+            const height = Math.floor(width * aspectRatio * 0.5); // 0.5 to account for character height
+            
+            canvas.width = width;
+            canvas.height = height;
+            
+            // Draw video frame to canvas
+            ctx.drawImage(video, 0, 0, width, height);
+            
+            // Get pixel data
+            const imageData = ctx.getImageData(0, 0, width, height);
+            const pixels = imageData.data;
+            
+            // Convert to ASCII
+            let asciiImage = '';
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const offset = (y * width + x) * 4;
+                    const r = pixels[offset];
+                    const g = pixels[offset + 1];
+                    const b = pixels[offset + 2];
+                    
+                    const brightness = getBrightness(r, g, b);
+                    asciiImage += pixelToAscii(brightness);
+                }
+                asciiImage += '\n';
+            }
+            
+            ascii.textContent = asciiImage;
+            
+            requestAnimationFrame(render);
+        }
+        
+        // Auto-start camera on load (optional)
+        // startCamera();
+    </script>
+</body>
+</html>
