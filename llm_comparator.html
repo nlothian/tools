@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LLM API Comparator</title>
+    <title>LLM Comparator</title>
     <link rel="icon" href="llm_comparator.png" type="image/png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -181,6 +181,9 @@
             transform: translateY(-6px);
             overflow: hidden;
             pointer-events: none;
+            margin-top: 0;
+            padding-top: 0;
+            border-top-width: 0;
             transition: max-height 220ms ease, opacity 200ms ease, transform 200ms ease;
         }
 
@@ -189,6 +192,9 @@
             opacity: 1;
             transform: translateY(0);
             pointer-events: auto;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top-width: 1px;
         }
 
         .tab-panel {
@@ -371,12 +377,12 @@
     </div>
 
     <div class="max-w-6xl mx-auto">
-        <h1 class="text-3xl font-bold tracking-tight text-sol-cyan mb-8 text-center">LLM API Comparator</h1>
+        <h1 class="text-3xl font-bold tracking-tight text-sol-cyan mb-8 text-center">LLM Comparator</h1>
 
         <div class="card mb-8">
             <div class="text-xs uppercase tracking-wider text-base-1 mb-3">Intro</div>
             <p class="text-sm text-base-01 leading-relaxed mb-3">
-                Compare responses across multiple LLM providers with the same prompt set, then review side-by-side
+                Compare responses across multiple large language models with the same prompt set, then review side-by-side
                 output, latency, and token usage.
             </p>
             <ul class="text-sm text-base-01 leading-relaxed list-disc pl-5 space-y-1">
