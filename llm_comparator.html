@@ -404,7 +404,7 @@
                         </div>
                         <div class="model-options ml-6 mt-3 pt-3 border-t border-base-1/20" id="openai-models">
                             <div class="mt-2 flex items-center gap-2">
-                                <input type="text" id="openai-custom" placeholder="Custom model name..." data-provider="openai" class="form-input flex-1">
+                                <input type="text" id="openai-custom" placeholder="Model ID..." data-provider="openai" class="form-input flex-1">
                                 <button id="openai-save-model" class="btn-success">Save</button>
                             </div>
                             <div class="text-xs text-base-00 uppercase tracking-wider mb-2 mt-5 pt-2 font-semibold">Saved models</div>
@@ -428,7 +428,7 @@
                         </div>
                         <div class="model-options ml-6 mt-3 pt-3 border-t border-base-1/20" id="anthropic-models">
                             <div class="mt-2 flex items-center gap-2">
-                                <input type="text" id="anthropic-custom" placeholder="Custom model name..." data-provider="anthropic" class="form-input flex-1">
+                                <input type="text" id="anthropic-custom" placeholder="Model ID..." data-provider="anthropic" class="form-input flex-1">
                                 <button id="anthropic-save-model" class="btn-success">Save</button>
                             </div>
                             <div class="text-xs text-base-00 uppercase tracking-wider mb-2 mt-5 pt-2 font-semibold">Saved models</div>
@@ -460,7 +460,7 @@
                         </div>
                         <div class="model-options ml-6 mt-3 pt-3 border-t border-base-1/20" id="gemini-models">
                             <div class="mt-2 flex items-center gap-2">
-                                <input type="text" id="gemini-custom" placeholder="Custom model name..." data-provider="gemini" class="form-input flex-1">
+                                <input type="text" id="gemini-custom" placeholder="Model ID..." data-provider="gemini" class="form-input flex-1">
                                 <button id="gemini-save-model" class="btn-success">Save</button>
                             </div>
                             <div class="text-xs text-base-00 uppercase tracking-wider mb-2 mt-5 pt-2 font-semibold">Saved models</div>
@@ -500,7 +500,7 @@
                                 <div id="openrouter-model-results" class="mt-1 max-h-64 overflow-y-auto pr-1 space-y-2"></div>
                             </div>
                             <div class="mt-3 flex items-center gap-2">
-                                <input type="text" id="openrouter-custom" placeholder="Model name (e.g., openai/gpt-3.5-turbo)..." data-provider="openrouter" class="form-input flex-1">
+                                <input type="text" id="openrouter-custom" placeholder="Model ID (e.g., deepseek/deepseek-v3.2, x-ai/grok-code-fast-1)..." data-provider="openrouter" class="form-input flex-1">
                                 <button id="openrouter-save-model" class="btn-success">Save</button>
                             </div>
                             <div class="text-xs text-base-00 uppercase tracking-wider mb-2 mt-5 pt-2 font-semibold">Saved models</div>
@@ -742,7 +742,12 @@
             if (value === null || value === undefined || value === '') {
                 return 'n/a';
             }
-            return `$${value}`;
+            const numeric = Number(value);
+            if (!Number.isFinite(numeric)) {
+                return 'n/a';
+            }
+            const perMillion = numeric * 1000000;
+            return `$${perMillion.toFixed(2)} per million tokens`;
         }
 
         function buildOpenRouterModelResult(model, onSelect) {
@@ -1293,8 +1298,63 @@
             }
         }
 
+        function getOpenRouterPricing(modelName) {
+            if (!openRouterModelCache?.models?.length) return null;
+            const normalized = (modelName || '').toLowerCase();
+            if (!normalized) return null;
+
+            let match = openRouterModelCache.models.find(model => {
+                const id = (model.id || '').toLowerCase();
+                return id === normalized;
+            });
+
+            if (!match) {
+                match = openRouterModelCache.models.find(model => {
+                    const id = (model.id || '').toLowerCase();
+                    const name = (model.name || '').toLowerCase();
+                    return id.includes(normalized) || normalized.includes(id) || name.includes(normalized);
+                });
+            }
+
+            if (!match || !match.pricing) return null;
+
+            const promptPrice = Number(match.pricing.prompt);
+            const completionPrice = Number(match.pricing.completion);
+
+            return {
+                input: Number.isFinite(promptPrice) ? promptPrice * 1000000 : 0,
+                output: Number.isFinite(completionPrice) ? completionPrice * 1000000 : 0
+            };
+        }
+
+        function getPricingSource(provider) {
+            if (provider === 'openrouter') {
+                return {
+                    href: 'https://openrouter.ai',
+                    label: 'openrouter.ai'
+                };
+            }
+            return {
+                href: 'https://www.llm-prices.com',
+                label: 'llm-prices.com'
+            };
+        }
+
+        function buildPricingSourceHTML(provider) {
+            const source = getPricingSource(provider);
+            return `
+                <p class="text-base-1 mt-2 text-[12px]">
+                    Pricing Source: <a class="underline hover:text-base-00" href="${source.href}" target="_blank" rel="noopener noreferrer">${source.label}</a>
+                </p>
+            `;
+        }
+
         // Get pricing for a model
         function getModelPricing(provider, modelName) {
+            if (provider === 'openrouter') {
+                return getOpenRouterPricing(modelName);
+            }
+
             if (!pricingData || !Array.isArray(pricingData) || pricingData.length === 0) return null;
 
             // Normalize model name for matching
@@ -1313,9 +1373,6 @@
                     } else if (provider === 'openai' && itemVendor === 'openai') {
                         return item;
                     } else if (provider === 'gemini' && itemVendor === 'google') {
-                        return item;
-                    } else if (provider === 'openrouter') {
-                        // OpenRouter can use any model, so just match on model name
                         return item;
                     }
                 }
@@ -1343,9 +1400,9 @@
             const totalPrice = inputPrice + outputPrice;
 
             return {
-                inputPrice: `$${inputPrice.toFixed(6)}`,
-                outputPrice: `$${outputPrice.toFixed(6)}`,
-                totalPrice: `$${totalPrice.toFixed(6)}`,
+                inputPrice: `$${inputPrice.toFixed(7)}`,
+                outputPrice: `$${outputPrice.toFixed(7)}`,
+                totalPrice: `$${totalPrice.toFixed(7)}`,
                 isUnknown: false
             };
         }
@@ -1763,6 +1820,7 @@
             const card = document.createElement('div');
             card.className = 'border border-base-1/20 p-4 bg-base-2 rounded shadow-sm';
             card.id = cardId;
+            const pricingSourceHTML = buildPricingSourceHTML(provider);
             card.innerHTML = `
                 <div class="flex items-center justify-between mb-4 pb-2.5 border-b border-base-1/20">
                     <div>
@@ -1786,9 +1844,7 @@
                         <div class="tab-panel hidden prose prose-sm max-w-none text-base-00 text-[13px]" data-tab="markdown"></div>
                         <div class="tab-panel hidden text-[13px]" data-tab="cost">
                             <p class="text-base-1">Cost details will appear after a successful response.</p>
-                            <p class="text-base-1 mt-2 text-[12px]">
-                                Pricing Source: <a class="underline hover:text-base-00" href="https://www.llm-prices.com" target="_blank" rel="noopener noreferrer">llm-prices.com</a>
-                            </p>
+                            ${pricingSourceHTML}
                         </div>
                     </div>
                 </div>
@@ -1835,11 +1891,7 @@
             const textPanel = card.querySelector('.tab-panel[data-tab="text"]');
             const markdownPanel = card.querySelector('.tab-panel[data-tab="markdown"]');
             const costPanel = card.querySelector('.tab-panel[data-tab="cost"]');
-            const pricingSourceHTML = `
-                <p class="text-base-1 mt-2 text-[12px]">
-                    Pricing Source: <a class="underline hover:text-base-00" href="https://www.llm-prices.com" target="_blank" rel="noopener noreferrer">llm-prices.com</a>
-                </p>
-            `;
+            const pricingSourceHTML = buildPricingSourceHTML(provider);
 
             const statusClasses = status === 'success'
                 ? 'text-xs text-sol-green'
