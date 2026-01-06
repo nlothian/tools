@@ -191,6 +191,10 @@
             pointer-events: auto;
         }
 
+        .tab-panel {
+            overflow-x: auto;
+        }
+
         /* Form inputs */
         .form-input {
             width: 100%;
@@ -670,6 +674,7 @@
         const OPENROUTER_MODEL_RESULT_LIMIT = 40;
         let openRouterModelCache = { cachedAt: '', models: [] };
         let openRouterModelFetchInFlight = false;
+        const OLLAMA_CORS_HELP_URL = 'https://docs.ollama.com/faq#how-can-i-allow-additional-web-origins-to-access-ollama';
 
         function loadSelectedModelsState() {
             selectedModelsState = {};
@@ -1884,7 +1889,7 @@
             return card;
         }
 
-        function updateResultCard(provider, model, status, content, inputText = '', outputText = '', durationMs = null) {
+        function updateResultCard(provider, model, status, content, inputText = '', outputText = '', durationMs = null, errorHtml = '') {
             const cardId = `result-${provider}-${model.replace(/[^a-zA-Z0-9]/g, '-')}`;
             const card = document.getElementById(cardId);
             const statusEl = card.querySelector('.result-status');
@@ -1926,7 +1931,11 @@
                         markdownPanel.textContent = rawText;
                     }
                 } else {
-                    markdownPanel.innerHTML = `<p class="text-sol-red">${rawText || 'No content'}</p>`;
+                    if (errorHtml) {
+                        markdownPanel.innerHTML = errorHtml;
+                    } else {
+                        markdownPanel.innerHTML = `<p class="text-sol-red">${rawText || 'No content'}</p>`;
+                    }
                 }
             }
 
@@ -1972,6 +1981,37 @@
             } else if (costPanel) {
                 costPanel.innerHTML = '<p class="text-base-1">Cost details unavailable.</p>' + pricingSourceHTML;
             }
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function isLikelyCorsError(error) {
+            const message = (error?.message || '').toLowerCase();
+            return message.includes('failed to fetch')
+                || message.includes('networkerror')
+                || message.includes('cors');
+        }
+
+        function buildApiErrorDisplay(provider, error) {
+            const message = error?.message || 'Unknown error';
+            if (getCustomProvider(provider) && isLikelyCorsError(error)) {
+                const text = `CORS error: ${message}\nFix this for Ollama: ${OLLAMA_CORS_HELP_URL}`;
+                const html = `
+                    <div class="space-y-2 text-[13px]">
+                        <p class="text-sol-red">CORS error: ${escapeHtml(message)}</p>
+                        <a class="text-sol-cyan underline" href="${OLLAMA_CORS_HELP_URL}" target="_blank" rel="noopener">Fix this for Ollama</a>
+                    </div>
+                `;
+                return { text, html };
+            }
+            return { text: `Error: ${message}`, html: '' };
         }
 
         function buildOpenAIStyleMessages(systemPrompt) {
@@ -2697,8 +2737,17 @@
                     })
                     .catch(error => {
                         const durationMs = performance.now() - startTime;
-                        updateResultCard(selection.provider, selection.model, 'error', 
-                            `Error: ${error.message}`, '', '', durationMs);
+                        const errorDisplay = buildApiErrorDisplay(selection.provider, error);
+                        updateResultCard(
+                            selection.provider,
+                            selection.model,
+                            'error',
+                            errorDisplay.text,
+                            '',
+                            '',
+                            durationMs,
+                            errorDisplay.html
+                        );
                     });
             });
 
