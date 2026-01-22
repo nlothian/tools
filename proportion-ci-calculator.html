@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Proportion Confidence Interval Calculator</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    
+    .container {
+      max-width: 56rem;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+    
+    @media (min-width: 768px) {
+      .container { padding: 2.5rem; }
+    }
+    
+    .header h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: -0.025em;
+    }
+    
+    @media (min-width: 768px) {
+      .header h1 { font-size: 1.875rem; }
+    }
+    
+    .header p {
+      margin-top: 0.5rem;
+      font-size: 0.875rem;
+      color: #475569;
+    }
+    
+    .grid {
+      display: grid;
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+    }
+    
+    @media (min-width: 768px) {
+      .grid { grid-template-columns: 1fr 1fr; }
+    }
+    
+    .card {
+      background: white;
+      border-radius: 1rem;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      padding: 1.25rem;
+    }
+    
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    
+    .card h2 {
+      font-size: 1.125rem;
+      font-weight: 600;
+    }
+    
+    .mode-buttons {
+      display: flex;
+      gap: 0.5rem;
+    }
+    
+    .mode-btn {
+      padding: 0.375rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.875rem;
+      border: 1px solid #e2e8f0;
+      background: white;
+      color: #334155;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    
+    .mode-btn:hover {
+      background: #f8fafc;
+    }
+    
+    .mode-btn.active {
+      background: #0f172a;
+      color: white;
+      border-color: #0f172a;
+    }
+    
+    .inputs {
+      margin-top: 1rem;
+      display: grid;
+      gap: 1rem;
+    }
+    
+    .field label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 500;
+      margin-bottom: 0.5rem;
+    }
+    
+    .field input, .field select {
+      width: 100%;
+      border-radius: 0.75rem;
+      border: 1px solid #e2e8f0;
+      padding: 0.5rem 0.75rem;
+      font-size: 1rem;
+      outline: none;
+      transition: box-shadow 0.15s;
+    }
+    
+    .field input:focus, .field select:focus {
+      box-shadow: 0 0 0 2px #cbd5e1;
+    }
+    
+    .field input:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+    
+    .field .hint {
+      font-size: 0.75rem;
+      color: #64748b;
+      margin-top: 0.5rem;
+    }
+    
+    .preset-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+    
+    .preset-btn {
+      padding: 0.375rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.875rem;
+      border: 1px solid #e2e8f0;
+      background: white;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    
+    .preset-btn:hover {
+      background: #f8fafc;
+    }
+    
+    .fpc-box {
+      border-radius: 1rem;
+      border: 1px solid #e2e8f0;
+      padding: 1rem;
+    }
+    
+    .fpc-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    
+    .fpc-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+    
+    .fpc-subtitle {
+      font-size: 0.75rem;
+      color: #64748b;
+    }
+    
+    .checkbox-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+    
+    .checkbox-label input {
+      width: 1rem;
+      height: 1rem;
+    }
+    
+    .fpc-field {
+      margin-top: 0.75rem;
+    }
+    
+    .fpc-field.disabled {
+      opacity: 0.5;
+    }
+    
+    .warning {
+      border-radius: 0.75rem;
+      border: 1px solid #fde68a;
+      background: #fefce8;
+      padding: 0.75rem;
+      font-size: 0.875rem;
+      color: #78350f;
+    }
+    
+    .results-placeholder {
+      margin-top: 1.5rem;
+      font-size: 0.875rem;
+      color: #475569;
+    }
+    
+    .results {
+      margin-top: 1rem;
+      display: grid;
+      gap: 1rem;
+    }
+    
+    .result-main {
+      background: #0f172a;
+      color: white;
+      border-radius: 1rem;
+      padding: 1rem;
+    }
+    
+    .result-main .label {
+      font-size: 0.875rem;
+      color: #cbd5e1;
+    }
+    
+    .result-main .method-name {
+      margin-top: 0.25rem;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    
+    .bounds-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+    }
+    
+    .bound-box {
+      background: rgba(255,255,255,0.1);
+      border-radius: 0.75rem;
+      padding: 0.75rem;
+    }
+    
+    .bound-box .bound-label {
+      font-size: 0.75rem;
+      color: #cbd5e1;
+    }
+    
+    .bound-box .bound-value {
+      margin-top: 0.25rem;
+      font-size: 1.125rem;
+      font-weight: 600;
+    }
+    
+    .bound-box .bound-pct {
+      font-size: 0.75rem;
+      color: #cbd5e1;
+    }
+    
+    .stat-row {
+      margin-top: 0.75rem;
+    }
+    
+    .stat-box {
+      background: rgba(255,255,255,0.1);
+      border-radius: 0.75rem;
+      padding: 0.75rem;
+      text-align: center;
+      margin-bottom: 0.75rem;
+    }
+    
+    .stat-box .stat-label {
+      font-size: 0.75rem;
+      color: #cbd5e1;
+    }
+    
+    .stat-box .stat-value {
+      margin-top: 0.25rem;
+      font-size: 1.125rem;
+      font-weight: 600;
+    }
+    
+    .details-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      font-size: 0.875rem;
+    }
+    
+    .detail-item .detail-label {
+      color: #64748b;
+    }
+    
+    .detail-item .detail-value {
+      font-weight: 600;
+    }
+    
+    .detail-note {
+      margin-top: 0.5rem;
+      font-size: 0.75rem;
+      color: #64748b;
+    }
+    
+    .methods-section .methods-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+    
+    .methods-list {
+      margin-top: 0.75rem;
+      display: grid;
+      gap: 0.5rem;
+      font-size: 0.875rem;
+    }
+    
+    .method-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      border-radius: 0.75rem;
+      border: 1px solid #e2e8f0;
+      padding: 0.5rem 0.75rem;
+      background: white;
+      color: #0f172a;
+    }
+    
+    .method-row.active {
+      background: #0f172a;
+      border-color: #0f172a;
+      color: white;
+    }
+    
+    .method-row .method-label {
+      font-weight: 500;
+    }
+    
+    .method-row .method-values {
+      font-variant-numeric: tabular-nums;
+    }
+    
+    .method-row.active .method-values {
+      color: white;
+    }
+    
+    .method-row:not(.active) .method-values {
+      color: #334155;
+    }
+    
+    .guidance {
+      border-radius: 1rem;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      padding: 1rem;
+      font-size: 0.75rem;
+      color: #334155;
+    }
+    
+    .guidance .guidance-title {
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+    
+    .guidance ul {
+      padding-left: 1.25rem;
+    }
+    
+    .guidance li {
+      margin-top: 0.25rem;
+    }
+    
+    .formula-section {
+      margin-top: 2rem;
+    }
+    
+    .formula-section h3 {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    
+    .formula-box {
+      margin-top: 0.5rem;
+      border-radius: 0.75rem;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 0.75rem;
+      font-family: monospace;
+      font-size: 0.875rem;
+      overflow-x: auto;
+    }
+    
+    .formula-note {
+      margin-top: 0.5rem;
+      font-size: 0.75rem;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Proportion Confidence Interval Calculator</h1>
+      <p>Confidence intervals for a population proportion using only a sample proportion (or successes) and sample size — no standard deviation required.</p>
+    </div>
+    
+    <div class="grid">
+      <!-- Inputs Panel -->
+      <div class="card">
+        <div class="card-header">
+          <h2>Inputs</h2>
+          <div class="mode-buttons">
+            <button class="mode-btn active" id="mode-successes" onclick="setMode('successes')">Use successes (x)</button>
+            <button class="mode-btn" id="mode-proportion" onclick="setMode('proportion')">Use proportion (p)</button>
+          </div>
+        </div>
+        
+        <div class="inputs">
+          <div class="field" id="successes-field">
+            <label>Successes (x)</label>
+            <input type="text" id="input-x" value="50" inputmode="decimal" placeholder="e.g., 50" oninput="calculate()">
+            <p class="hint">Number of "successes" / positive observations in your sample.</p>
+          </div>
+          
+          <div class="field" id="proportion-field" style="display: none;">
+            <label>Sample proportion (p)</label>
+            <input type="text" id="input-p" value="0.5" inputmode="decimal" placeholder="e.g., 0.5" oninput="calculate()">
+            <p class="hint">Must be between 0 and 1 (e.g., 0.37 for 37%).</p>
+          </div>
+          
+          <div class="field">
+            <label>Sample size (n)</label>
+            <input type="text" id="input-n" value="100" inputmode="numeric" placeholder="e.g., 100" oninput="calculate()">
+          </div>
+          
+          <div class="field">
+            <label>Confidence level</label>
+            <input type="text" id="input-conf" value="0.95" inputmode="decimal" placeholder="e.g., 0.95" oninput="calculate()">
+            <div class="preset-buttons">
+              <button class="preset-btn" onclick="setConf(0.9)">90%</button>
+              <button class="preset-btn" onclick="setConf(0.95)">95%</button>
+              <button class="preset-btn" onclick="setConf(0.99)">99%</button>
+            </div>
+            <p class="hint">Enter as a decimal between 0 and 1 (0.95 = 95%).</p>
+          </div>
+          
+          <div class="field">
+            <label>Interval method</label>
+            <select id="input-method" onchange="calculate()">
+              <option value="wilson">Wilson score (recommended)</option>
+              <option value="hypergeo">Hypergeometric score (finite-pop Wilson)</option>
+              <option value="agresti">Agresti–Coull</option>
+              <option value="wald">Wald (normal approximation)</option>
+            </select>
+            <p class="hint">Hypergeometric score is a finite-population Wilson analogue that uses N.</p>
+          </div>
+          
+          <div class="fpc-box">
+            <div class="fpc-header">
+              <div>
+                <div class="fpc-title">Finite population correction</div>
+                <div class="fpc-subtitle">Checkbox applies to Wald only; Hypergeometric score uses N directly.</div>
+              </div>
+              <label class="checkbox-label">
+                <input type="checkbox" id="input-fpc" onchange="calculate()">
+                Enable (Wald)
+              </label>
+            </div>
+            
+            <div class="fpc-field" id="pop-field">
+              <label style="font-size: 0.875rem; font-weight: 500; display: block; margin-bottom: 0.5rem;">Population size (N)</label>
+              <input type="text" id="input-N" value="1000" inputmode="numeric" placeholder="e.g., 10000" oninput="calculate()">
+              <p class="hint">Required for Hypergeometric score, and for Wald+FPC when enabled.</p>
+            </div>
+          </div>
+          
+          <div class="warning" id="warning" style="display: none;">
+            Please enter valid inputs: n &gt; 0, confidence between 0 and 1, and p in [0,1] (or successes x between 0 and n).
+          </div>
+        </div>
+      </div>
+      
+      <!-- Results Panel -->
+      <div class="card">
+        <h2>Results</h2>
+        
+        <div id="results-placeholder" class="results-placeholder">
+          Enter inputs to see your confidence interval.
+        </div>
+        
+        <div id="results" class="results" style="display: none;">
+          <div class="result-main">
+            <div class="label">Selected method</div>
+            <div class="method-name" id="chosen-method">Wilson score</div>
+            
+            <div class="bounds-grid">
+              <div class="bound-box">
+                <div class="bound-label">Lower bound</div>
+                <div class="bound-value" id="chosen-lo-count">40</div>
+                <div class="bound-pct" id="chosen-lo-pct">40.20%</div>
+              </div>
+              <div class="bound-box">
+                <div class="bound-label">Upper bound</div>
+                <div class="bound-value" id="chosen-hi-count">60</div>
+                <div class="bound-pct" id="chosen-hi-pct">59.80%</div>
+              </div>
+            </div>
+            
+            <div class="stat-row">
+              <div class="stat-box">
+                <div class="stat-label">Total confidence interval width</div>
+                <div class="stat-value" id="chosen-width">19.60%</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label">Relative standard error (RSE)</div>
+                <div class="stat-value" id="chosen-rse">10.00%</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="card" style="padding: 1rem;">
+            <div class="details-grid">
+              <div class="detail-item">
+                <div class="detail-label">Sample size (n)</div>
+                <div class="detail-value" id="detail-n">100</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Successes (x)</div>
+                <div class="detail-value" id="detail-x">50</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">z value</div>
+                <div class="detail-value" id="detail-z">1.959964</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Population model</div>
+                <div class="detail-value" id="detail-model">Binomial (default)</div>
+              </div>
+            </div>
+            <div class="detail-note" id="detail-note">Population size not used</div>
+          </div>
+          
+          <div class="card methods-section" style="padding: 1rem;">
+            <div class="methods-title">All methods</div>
+            <div class="methods-list">
+              <div class="method-row" id="row-wilson">
+                <div class="method-label">Wilson score</div>
+                <div class="method-values" id="val-wilson">40 → 60 · 40.20% → 59.80%</div>
+              </div>
+              <div class="method-row" id="row-hypergeo">
+                <div class="method-label">Hypergeometric score (finite-pop Wilson)</div>
+                <div class="method-values" id="val-hypergeo">40 → 60 · 40.20% → 59.80%</div>
+              </div>
+              <div class="method-row" id="row-agresti">
+                <div class="method-label">Agresti–Coull</div>
+                <div class="method-values" id="val-agresti">40 → 60 · 40.20% → 59.80%</div>
+              </div>
+              <div class="method-row" id="row-wald">
+                <div class="method-label">Wald (normal approx)</div>
+                <div class="method-values" id="val-wald">40 → 60 · 40.20% → 59.80%</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="guidance">
+            <div class="guidance-title">Quick guidance</div>
+            <ul>
+              <li>If n is small or p is near 0 or 1, prefer Wilson.</li>
+              <li>If sampling without replacement from a finite population, consider Hypergeometric score (or Wald+FPC).</li>
+              <li>Wald matches: p ± z √(p(1−p)/n).</li>
+              <li>FPC is appropriate when sampling without replacement from a finite population (and the sampling fraction n/N is not tiny). In this calculator it applies to the Wald interval only. The Hypergeometric score method directly uses N.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let mode = 'successes';
+
+    // Acklam's approximation for inverse normal CDF
+    function normInv(p) {
+      if (!(p > 0 && p < 1)) return NaN;
+
+      const a = [
+        -3.969683028665376e1, 2.209460984245205e2, -2.759285104469687e2,
+        1.38357751867269e2, -3.066479806614716e1, 2.506628277459239
+      ];
+      const b = [
+        -5.447609879822406e1, 1.615858368580409e2, -1.556989798598866e2,
+        6.680131188771972e1, -1.328068155288572e1
+      ];
+      const c = [
+        -7.784894002430293e-3, -3.223964580411365e-1, -2.400758277161838,
+        -2.549732539343734, 4.374664141464968, 2.938163982698783
+      ];
+      const d = [
+        7.784695709041462e-3, 3.224671290700398e-1, 2.445134137142996, 3.754408661907416
+      ];
+
+      const plow = 0.02425;
+      const phigh = 1 - plow;
+
+      let q, r;
+
+      if (p < plow) {
+        q = Math.sqrt(-2 * Math.log(p));
+        return (((((c[0]*q + c[1])*q + c[2])*q + c[3])*q + c[4])*q + c[5]) /
+               ((((d[0]*q + d[1])*q + d[2])*q + d[3])*q + 1);
+      }
+
+      if (p > phigh) {
+        q = Math.sqrt(-2 * Math.log(1 - p));
+        return -(((((c[0]*q + c[1])*q + c[2])*q + c[3])*q + c[4])*q + c[5]) /
+                ((((d[0]*q + d[1])*q + d[2])*q + d[3])*q + 1);
+      }
+
+      q = p - 0.5;
+      r = q * q;
+      const num = (((((a[0]*r + a[1])*r + a[2])*r + a[3])*r + a[4])*r + a[5]) * q;
+      const den = (((((b[0]*r + b[1])*r + b[2])*r + b[3])*r + b[4])*r + 1);
+      return num / den;
+    }
+
+    function clamp01(x) {
+      return Math.min(1, Math.max(0, x));
+    }
+
+    function fmtPct(x) {
+      if (!Number.isFinite(x)) return '—';
+      return (x * 100).toFixed(2) + '%';
+    }
+
+    function fmtNum(x, dp = 6) {
+      if (!Number.isFinite(x)) return '—';
+      return x.toFixed(dp);
+    }
+
+    function fmtCount(x, dp = 0) {
+      if (!Number.isFinite(x)) return '—';
+      return x.toFixed(dp);
+    }
+
+    function finitePopulationCorrection(n, N) {
+      if (!Number.isFinite(n) || !Number.isFinite(N)) return NaN;
+      if (N <= 1) return NaN;
+      if (n < 0) return NaN;
+      if (n > N) return NaN;
+      return Math.sqrt((N - n) / (N - 1));
+    }
+
+    function finitePopulationFactor(n, N) {
+      if (!Number.isFinite(n) || !Number.isFinite(N)) return NaN;
+      if (N <= 1) return NaN;
+      if (n < 0) return NaN;
+      if (n > N) return NaN;
+      return (N - n) / (N - 1);
+    }
+
+    function bisectRoot(fn, lo, hi, maxIter = 80, tol = 1e-12) {
+      let fLo = fn(lo);
+      let fHi = fn(hi);
+      if (!Number.isFinite(fLo) || !Number.isFinite(fHi)) return NaN;
+      if (fLo === 0) return lo;
+      if (fHi === 0) return hi;
+      if (fLo * fHi > 0) return NaN;
+
+      let a = lo, b = hi, fa = fLo, fb = fHi;
+
+      for (let i = 0; i < maxIter; i++) {
+        const mid = (a + b) / 2;
+        const fm = fn(mid);
+        if (!Number.isFinite(fm)) return NaN;
+        if (Math.abs(fm) < tol || b - a < tol) return mid;
+        if (fa * fm <= 0) { b = mid; fb = fm; }
+        else { a = mid; fa = fm; }
+      }
+      return (a + b) / 2;
+    }
+
+    function bracketRoot(fn, lo, hi, steps = 400) {
+      let prevX = lo;
+      let prevF = fn(prevX);
+      if (!Number.isFinite(prevF)) return null;
+      for (let i = 1; i <= steps; i++) {
+        const x = lo + (i * (hi - lo)) / steps;
+        const f = fn(x);
+        if (!Number.isFinite(f)) continue;
+        if (prevF === 0) return { a: prevX, b: prevX };
+        if (f === 0) return { a: x, b: x };
+        if (prevF * f < 0) return { a: prevX, b: x };
+        prevX = x;
+        prevF = f;
+      }
+      return null;
+    }
+
+    function hypergeoScoreCI(x, n, N, z) {
+      if (!(Number.isFinite(x) && Number.isFinite(n) && Number.isFinite(N) && Number.isFinite(z))) {
+        return { lo: NaN, hi: NaN };
+      }
+      if (n <= 0) return { lo: NaN, hi: NaN };
+      if (N <= 1 || n > N) return { lo: NaN, hi: NaN };
+      if (x < 0 || x > n) return { lo: NaN, hi: NaN };
+
+      const pHat = x / n;
+      const f = finitePopulationFactor(n, N);
+
+      if (f === 0) return { lo: clamp01(pHat), hi: clamp01(pHat) };
+
+      const eps = 1e-12;
+      const score = (p) => {
+        const pp = Math.min(1 - eps, Math.max(eps, p));
+        const denom = Math.sqrt(n * pp * (1 - pp) * f);
+        return (x - n * pp) / denom;
+      };
+
+      const solveForTarget = (target) => {
+        const fn = (p) => score(p) - target;
+        const br = bracketRoot(fn, eps, 1 - eps);
+        if (!br) return NaN;
+        if (br.a === br.b) return br.a;
+        return bisectRoot(fn, br.a, br.b);
+      };
+
+      let lo = 0, hi = 1;
+
+      if (x === 0) {
+        lo = 0;
+        const solHi = solveForTarget(-z);
+        hi = Number.isFinite(solHi) ? solHi : 1;
+      } else if (x === n) {
+        hi = 1;
+        const solLo = solveForTarget(+z);
+        lo = Number.isFinite(solLo) ? solLo : 0;
+      } else {
+        const solLo = solveForTarget(+z);
+        const solHi = solveForTarget(-z);
+        lo = Number.isFinite(solLo) ? solLo : 0;
+        hi = Number.isFinite(solHi) ? solHi : 1;
+      }
+
+      lo = clamp01(lo);
+      hi = clamp01(hi);
+      if (lo > hi) { const t = lo; lo = hi; hi = t; }
+      return { lo, hi };
+    }
+
+    function setMode(newMode) {
+      mode = newMode;
+      document.getElementById('mode-successes').classList.toggle('active', mode === 'successes');
+      document.getElementById('mode-proportion').classList.toggle('active', mode === 'proportion');
+      document.getElementById('successes-field').style.display = mode === 'successes' ? 'block' : 'none';
+      document.getElementById('proportion-field').style.display = mode === 'proportion' ? 'block' : 'none';
+      calculate();
+    }
+
+    function setConf(c) {
+      document.getElementById('input-conf').value = String(c);
+      calculate();
+    }
+
+    function calculate() {
+      const nStr = document.getElementById('input-n').value;
+      const confStr = document.getElementById('input-conf').value;
+      const NStr = document.getElementById('input-N').value;
+      const method = document.getElementById('input-method').value;
+      const useFpc = document.getElementById('input-fpc').checked;
+
+      const n = Number(nStr);
+      const conf = Number(confStr);
+      const N = Number(NStr);
+
+      let x = null, p = null;
+
+      if (mode === 'successes') {
+        x = Number(document.getElementById('input-x').value);
+        if (Number.isFinite(x) && Number.isFinite(n) && n > 0) p = x / n;
+      } else {
+        p = Number(document.getElementById('input-p').value);
+        if (Number.isFinite(p) && Number.isFinite(n) && n > 0) x = p * n;
+      }
+
+      const alpha = 1 - conf;
+      const z = normInv(1 - alpha / 2);
+
+      const needsN = useFpc || method === 'hypergeo';
+      const fpc = useFpc ? finitePopulationCorrection(n, N) : 1;
+
+      // Update UI for N field
+      const showNInput = useFpc || method === 'hypergeo';
+      document.getElementById('pop-field').classList.toggle('disabled', !showNInput);
+      document.getElementById('input-N').disabled = !showNInput;
+
+      const ok = Number.isFinite(n) && n > 0 &&
+                 Number.isFinite(conf) && conf > 0 && conf < 1 &&
+                 p !== null && Number.isFinite(p) && p >= 0 && p <= 1 &&
+                 x !== null && Number.isFinite(x) && x >= 0 && x <= n &&
+                 Number.isFinite(z) &&
+                 (!needsN || (Number.isFinite(N) && N >= n && N > 1 && Number.isFinite(fpc)));
+
+      const warningEl = document.getElementById('warning');
+      const resultsEl = document.getElementById('results');
+      const placeholderEl = document.getElementById('results-placeholder');
+
+      if (!ok) {
+        warningEl.style.display = 'block';
+        warningEl.textContent = `Please enter valid inputs: n > 0, confidence between 0 and 1, and p in [0,1] (or successes x between 0 and n).${needsN ? ' Also ensure N ≥ n and N > 1.' : ''}`;
+        resultsEl.style.display = 'none';
+        placeholderEl.style.display = 'block';
+        return;
+      }
+
+      warningEl.style.display = 'none';
+      placeholderEl.style.display = 'none';
+      resultsEl.style.display = 'grid';
+
+      // Calculate all intervals
+      const z2 = z * z;
+
+      // Wald
+      const waldSe = Math.sqrt((p * (1 - p)) / n) * fpc;
+      const waldLo = clamp01(p - z * waldSe);
+      const waldHi = clamp01(p + z * waldSe);
+
+      // Wilson
+      const denom = 1 + z2 / n;
+      const center = (p + z2 / (2 * n)) / denom;
+      const half = (z * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n))) / denom;
+      const wilsonLo = clamp01(center - half);
+      const wilsonHi = clamp01(center + half);
+      const wilsonSe = Math.sqrt((p * (1 - p)) / n);
+
+      // Hypergeometric
+      const hg = hypergeoScoreCI(x, n, N, z);
+      const hypergeoLo = clamp01(hg.lo);
+      const hypergeoHi = clamp01(hg.hi);
+      const fVar = finitePopulationFactor(n, N);
+      const hypergeoSe = Math.sqrt((p * (1 - p)) / n * fVar);
+
+      // Agresti-Coull
+      const nTilde = n + z2;
+      const pTilde = (x + z2 / 2) / nTilde;
+      const seAC = Math.sqrt((pTilde * (1 - pTilde)) / nTilde);
+      const agrestiLo = clamp01(pTilde - z * seAC);
+      const agrestiHi = clamp01(pTilde + z * seAC);
+
+      // Selected method
+      let chosen;
+      if (method === 'wilson') {
+        chosen = { lo: wilsonLo, hi: wilsonHi, label: 'Wilson score', se: wilsonSe, pEst: p };
+      } else if (method === 'hypergeo') {
+        chosen = { lo: hypergeoLo, hi: hypergeoHi, label: 'Hypergeometric score (finite-pop Wilson)', se: hypergeoSe, pEst: p };
+      } else if (method === 'agresti') {
+        chosen = { lo: agrestiLo, hi: agrestiHi, label: 'Agresti–Coull', se: seAC, pEst: pTilde };
+      } else {
+        chosen = { lo: waldLo, hi: waldHi, label: 'Wald (normal approx)', se: waldSe, pEst: p };
+      }
+
+      const rse = chosen.pEst > 0 ? chosen.se / chosen.pEst : NaN;
+
+      // Update display
+      document.getElementById('chosen-method').textContent = chosen.label;
+      document.getElementById('chosen-lo-count').textContent = fmtCount(chosen.lo * n, 0);
+      document.getElementById('chosen-lo-pct').textContent = fmtPct(chosen.lo);
+      document.getElementById('chosen-hi-count').textContent = fmtCount(chosen.hi * n, 0);
+      document.getElementById('chosen-hi-pct').textContent = fmtPct(chosen.hi);
+      document.getElementById('chosen-width').textContent = fmtPct(chosen.hi - chosen.lo);
+      document.getElementById('chosen-rse').textContent = fmtPct(rse);
+
+      document.getElementById('detail-n').textContent = n;
+      document.getElementById('detail-x').textContent = fmtCount(x, 0);
+      document.getElementById('detail-z').textContent = fmtNum(z, 6);
+
+      let modelText;
+      if (method === 'hypergeo') {
+        modelText = 'Finite-pop (Hypergeometric score)';
+      } else if (useFpc) {
+        modelText = 'Finite-pop (Wald+FPC)';
+      } else {
+        modelText = 'Binomial (default)';
+      }
+      document.getElementById('detail-model').textContent = modelText;
+
+      if (needsN) {
+        const factor = method === 'hypergeo' ? finitePopulationFactor(n, N) : (useFpc ? fpc : 1);
+        document.getElementById('detail-note').textContent = `N = ${N} · factor = ${fmtNum(factor, 6)}`;
+      } else {
+        document.getElementById('detail-note').textContent = 'Population size not used';
+      }
+
+      // Update method rows
+      const methods = ['wilson', 'hypergeo', 'agresti', 'wald'];
+      const results = {
+        wilson: { lo: wilsonLo, hi: wilsonHi },
+        hypergeo: { lo: hypergeoLo, hi: hypergeoHi },
+        agresti: { lo: agrestiLo, hi: agrestiHi },
+        wald: { lo: waldLo, hi: waldHi }
+      };
+
+      methods.forEach(m => {
+        const row = document.getElementById('row-' + m);
+        const val = document.getElementById('val-' + m);
+        row.classList.toggle('active', m === method);
+        const r = results[m];
+        val.textContent = `${fmtCount(r.lo * n, 0)} → ${fmtCount(r.hi * n, 0)} · ${fmtPct(r.lo)} → ${fmtPct(r.hi)}`;
+      });
+    }
+
+    // Initial calculation
+    calculate();
+  </script>
+</body>
+</html>

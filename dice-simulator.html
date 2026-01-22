@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive Dice Simulator</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #9333ea 0%, #4f46e5 100%);
+      padding: 1.5rem;
+    }
+
+    .container {
+      max-width: 72rem;
+      margin: 0 auto;
+      background: white;
+      border-radius: 1rem;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      padding: 2rem;
+    }
+
+    h1 {
+      font-size: 2.25rem;
+      font-weight: 700;
+      text-align: center;
+      color: #1f2937;
+      margin-bottom: 2rem;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+      padding: 1.5rem;
+      background: #f9fafb;
+      border-radius: 0.75rem;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .control-group label {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #4b5563;
+      margin-bottom: 0.5rem;
+    }
+
+    .control-group input {
+      padding: 0.75rem 1rem;
+      font-size: 1.125rem;
+      border: 2px solid #d1d5db;
+      border-radius: 0.5rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .control-group input:focus {
+      border-color: #9333ea;
+    }
+
+    .hint {
+      font-size: 0.75rem;
+      color: #6b7280;
+      margin-top: 0.25rem;
+    }
+
+    .roll-button {
+      grid-column: 1 / -1;
+      padding: 1rem 2rem;
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: white;
+      background: linear-gradient(135deg, #9333ea 0%, #4f46e5 100%);
+      border: none;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .roll-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: linear-gradient(135deg, #9333ea 0%, #4f46e5 100%);
+      color: white;
+      padding: 1.5rem;
+      border-radius: 0.75rem;
+      text-align: center;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      opacity: 0.9;
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-value {
+      font-size: 1.875rem;
+      font-weight: 700;
+    }
+
+    .stat-expected {
+      font-size: 0.875rem;
+      opacity: 0.9;
+      margin-top: 0.5rem;
+    }
+
+    .chart-section {
+      margin-bottom: 2.5rem;
+    }
+
+    .chart-section h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #1f2937;
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 300px;
+    }
+
+    .chart-note {
+      font-size: 0.875rem;
+      color: #6b7280;
+      text-align: center;
+      margin-bottom: 1rem;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎲 Interactive Dice Simulator</h1>
+
+    <div class="controls">
+      <div class="control-group">
+        <label for="numThrows">Number of Throws (10-10,000)</label>
+        <input type="number" id="numThrows" min="10" max="10000" value="1000">
+      </div>
+      <div class="control-group">
+        <label for="numSides">Number of Sides (2-100)</label>
+        <input type="number" id="numSides" min="2" max="100" value="6">
+      </div>
+      <div class="control-group">
+        <label for="targetProbability">Target Side Probability (%)</label>
+        <input type="number" id="targetProbability" min="0" max="100" step="0.1" value="16.7">
+        <div class="hint" id="uniformHint">Uniform: 16.7%</div>
+      </div>
+      <button class="roll-button" onclick="runSimulation()">🎲 Roll Dice</button>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Die Type</div>
+        <div class="stat-value" id="dieType">Fair</div>
+        <div class="stat-expected" id="dieTypeDesc">Uniform distribution</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Final Average</div>
+        <div class="stat-value" id="finalAvg">3.500</div>
+        <div class="stat-expected" id="expectedAvg">Expected: 3.500</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Target Side Rolled Count</div>
+        <div class="stat-value" id="finalMaxCount">167</div>
+        <div class="stat-expected" id="expectedMaxCount">Expected: 166.7</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Target Side %</div>
+        <div class="stat-value" id="maxPercentage">16.7%</div>
+        <div class="stat-expected" id="expectedMaxPercentage">Expected: 16.7%</div>
+      </div>
+    </div>
+
+    <div class="chart-section">
+      <h2 id="avgChartTitle">Average Dice Value Over 1000 Throws</h2>
+      <div class="chart-container">
+        <canvas id="avgChart"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-section">
+      <h2 id="countChartTitle">Cumulative Count of Target Side (6)</h2>
+      <div class="chart-container">
+        <canvas id="countChart"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-section">
+      <h2>Deviation from Expected Values</h2>
+      <p class="chart-note">This shows the count of times the target side was thrown more or less than expected. For example, if you do 100 throws and the green line shows 10, that means it was thrown 10 times more than you would expect.</p>
+      <div class="chart-container">
+        <canvas id="deviationChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let avgChart, countChart, deviationChart;
+    let seed = Date.now();
+
+    // Seeded random number generator
+    function seededRandom(s) {
+      let value = s;
+      return function() {
+        value = (value * 9301 + 49297) % 233280;
+        return value / 233280;
+      };
+    }
+
+    function clamp(val, min, max) {
+      return Math.max(min, Math.min(max, val));
+    }
+
+    function runSimulation() {
+      seed = Date.now();
+      updateSimulation();
+    }
+
+    function updateSimulation() {
+      const numThrows = clamp(parseInt(document.getElementById('numThrows').value) || 1000, 10, 10000);
+      const numSides = clamp(parseInt(document.getElementById('numSides').value) || 6, 2, 100);
+      const targetPercentage = clamp(parseFloat(document.getElementById('targetProbability').value) || (100 / numSides), 0, 100);
+      const targetProbability = targetPercentage / 100;
+
+      // Update uniform hint
+      document.getElementById('uniformHint').textContent = `Uniform: ${(100 / numSides).toFixed(1)}%`;
+
+      const random = seededRandom(seed);
+      const throws = [];
+
+      // Calculate probabilities
+      const otherSidesProbability = (1 - targetProbability) / (numSides - 1);
+      const cumulativeProbabilities = [];
+      let cumulative = 0;
+
+      for (let i = 1; i <= numSides; i++) {
+        const prob = i === numSides ? targetProbability : otherSidesProbability;
+        cumulative += prob;
+        cumulativeProbabilities.push(cumulative);
+      }
+
+      // Calculate expected average
+      let expectedAverage = 0;
+      for (let i = 1; i <= numSides; i++) {
+        const prob = i === numSides ? targetProbability : otherSidesProbability;
+        expectedAverage += i * prob;
+      }
+
+      // Generate throws
+      for (let i = 0; i < numThrows; i++) {
+        const rand = random();
+        let result = 1;
+        for (let j = 0; j < cumulativeProbabilities.length; j++) {
+          if (rand < cumulativeProbabilities[j]) {
+            result = j + 1;
+            break;
+          }
+        }
+        throws.push(result);
+      }
+
+      // Calculate data
+      let cumulativeSum = 0;
+      let maxRolls = 0;
+      const data = [];
+
+      // Sample data points for performance (max 500 points)
+      const sampleRate = Math.max(1, Math.floor(numThrows / 500));
+
+      throws.forEach((roll, index) => {
+        cumulativeSum += roll;
+        if (roll === numSides) maxRolls++;
+
+        const throwNum = index + 1;
+        if (throwNum % sampleRate === 0 || throwNum === numThrows) {
+          const avgValue = cumulativeSum / throwNum;
+          const expectedMax = throwNum * targetProbability;
+
+          data.push({
+            throw: throwNum,
+            avgValue: avgValue,
+            expectedAvg: expectedAverage,
+            maxCount: maxRolls,
+            expectedMaxCount: expectedMax,
+            avgDiff: avgValue - expectedAverage,
+            maxDiff: maxRolls - expectedMax
+          });
+        }
+      });
+
+      const finalData = data[data.length - 1];
+      const maxPercentage = (finalData.maxCount / numThrows) * 100;
+      const expectedMaxPercentage = targetProbability * 100;
+
+      // Update stats
+      const isFair = Math.abs(targetProbability - (1 / numSides)) < 0.001;
+      document.getElementById('dieType').textContent = isFair ? 'Fair' : 'Biased';
+      document.getElementById('dieTypeDesc').textContent = isFair ? 'Uniform distribution' : `${numSides} favored`;
+      document.getElementById('finalAvg').textContent = finalData.avgValue.toFixed(3);
+      document.getElementById('expectedAvg').textContent = `Expected: ${expectedAverage.toFixed(3)}`;
+      document.getElementById('finalMaxCount').textContent = finalData.maxCount;
+      document.getElementById('expectedMaxCount').textContent = `Expected: ${finalData.expectedMaxCount.toFixed(1)}`;
+      document.getElementById('maxPercentage').textContent = `${maxPercentage.toFixed(1)}%`;
+      document.getElementById('expectedMaxPercentage').textContent = `Expected: ${expectedMaxPercentage.toFixed(1)}%`;
+
+      // Update chart titles
+      document.getElementById('avgChartTitle').textContent = `Average Dice Value Over ${numThrows} Throws`;
+      document.getElementById('countChartTitle').textContent = `Cumulative Count of Target Side (${numSides})`;
+
+      // Update charts
+      updateCharts(data, numSides, expectedAverage, finalData);
+    }
+
+    function updateCharts(data, numSides, expectedAverage, finalData) {
+      const labels = data.map(d => d.throw);
+
+      // Destroy existing charts
+      if (avgChart) avgChart.destroy();
+      if (countChart) countChart.destroy();
+      if (deviationChart) deviationChart.destroy();
+
+      // Average Value Chart
+      avgChart = new Chart(document.getElementById('avgChart'), {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Running Average',
+              data: data.map(d => d.avgValue),
+              borderColor: '#2196F3',
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.1
+            },
+            {
+              label: 'Expected',
+              data: data.map(d => d.expectedAvg),
+              borderColor: '#ff4444',
+              borderWidth: 2,
+              borderDash: [5, 5],
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { title: { display: true, text: 'Number of Throws' } },
+            y: { 
+              title: { display: true, text: 'Average Value' },
+              min: 0,
+              max: numSides + 1
+            }
+          },
+          plugins: { legend: { position: 'top' } }
+        }
+      });
+
+      // Count Chart
+      countChart = new Chart(document.getElementById('countChart'), {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: `Target Side (${numSides})`,
+              data: data.map(d => d.maxCount),
+              borderColor: '#4CAF50',
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.1
+            },
+            {
+              label: 'Expected Count',
+              data: data.map(d => d.expectedMaxCount),
+              borderColor: '#ff4444',
+              borderWidth: 2,
+              borderDash: [5, 5],
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { title: { display: true, text: 'Number of Throws' } },
+            y: { title: { display: true, text: 'Count' } }
+          },
+          plugins: { legend: { position: 'top' } }
+        }
+      });
+
+      // Deviation Chart
+      const maxDiffFinal = Math.round(finalData.maxDiff);
+      const maxDiffLabel = `Target Side (${numSides}) Diff: ${maxDiffFinal >= 0 ? '+' : ''}${maxDiffFinal}`;
+
+      deviationChart = new Chart(document.getElementById('deviationChart'), {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: `Avg Diff from ${expectedAverage.toFixed(1)}`,
+              data: data.map(d => d.avgDiff),
+              borderColor: '#2196F3',
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.1
+            },
+            {
+              label: maxDiffLabel,
+              data: data.map(d => d.maxDiff),
+              borderColor: '#4CAF50',
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.1
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { title: { display: true, text: 'Number of Throws' } },
+            y: { title: { display: true, text: 'Deviation' } }
+          },
+          plugins: {
+            legend: { position: 'top' },
+            annotation: {
+              annotations: {
+                line1: {
+                  type: 'line',
+                  yMin: 0,
+                  yMax: 0,
+                  borderColor: '#000',
+                  borderWidth: 1,
+                  borderDash: []
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Update uniform hint when sides change
+    document.getElementById('numSides').addEventListener('change', function() {
+      const numSides = clamp(parseInt(this.value) || 6, 2, 100);
+      const uniformProb = (100 / numSides).toFixed(1);
+      document.getElementById('uniformHint').textContent = `Uniform: ${uniformProb}%`;
+      document.getElementById('targetProbability').value = uniformProb;
+    });
+
+    // Initialize
+    window.addEventListener('load', runSimulation);
+  </script>
+</body>
+</html>
