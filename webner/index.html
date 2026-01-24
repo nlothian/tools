@@ -603,6 +603,60 @@
             color: var(--concrete-dark);
             margin-bottom: var(--space-4);
         }
+
+        .toolbar {
+            display: flex;
+            gap: var(--space-2);
+            margin-bottom: var(--space-3);
+            justify-content: flex-end;
+        }
+
+        .toolbar-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            background: var(--white-pure);
+            border: 2px solid var(--concrete);
+            cursor: pointer;
+            transition: all var(--duration-fast) var(--ease-out);
+        }
+
+        .toolbar-btn:hover:not(:disabled) {
+            border-color: var(--signal-orange);
+            background: var(--white-warm);
+        }
+
+        .toolbar-btn:focus-visible {
+            outline: 3px solid var(--sky-clear);
+            outline-offset: 2px;
+        }
+
+        .toolbar-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .toolbar-btn svg {
+            width: 18px;
+            height: 18px;
+            stroke: var(--asphalt-deep);
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .toolbar-btn.copied {
+            border-color: var(--industrial-green);
+            background: var(--industrial-green);
+        }
+
+        .toolbar-btn.copied svg {
+            stroke: var(--white-pure);
+        }
     </style>
 </head>
 <body>
@@ -674,12 +728,28 @@ Example: Apple CEO Tim Cook announced the new iPhone at their headquarters in Cu
             </div>
 
             <div id="redacted-text" class="sub-tab-content active" data-subtab-group="redacted">
+                <div class="toolbar" id="redacted-toolbar" style="display: none;">
+                    <button class="toolbar-btn" id="copy-redacted-btn" title="Copy to clipboard">
+                        <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    </button>
+                    <button class="toolbar-btn" id="download-redacted-btn" title="Download as .txt">
+                        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    </button>
+                </div>
                 <div id="redacted-content">
                     <p class="no-entities">Run NER on some text to see redacted output here.</p>
                 </div>
             </div>
 
             <div id="redacted-mapping" class="sub-tab-content" data-subtab-group="redacted">
+                <div class="toolbar" id="mapping-toolbar" style="display: none;">
+                    <button class="toolbar-btn" id="copy-mapping-btn" title="Copy to clipboard (JSON)">
+                        <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    </button>
+                    <button class="toolbar-btn" id="download-mapping-btn" title="Download as .json">
+                        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    </button>
+                </div>
                 <div id="redacted-mapping-content">
                     <p class="no-entities">Run NER on some text to see redacted output here.</p>
                 </div>
@@ -697,7 +767,8 @@ Example: Apple CEO Tim Cook announced the new iPhone at their headquarters in Cu
             removeOverlappingEntities,
             buildHighlightedText,
             generateRedactedText,
-            processNERResults
+            processNERResults,
+            PIPELINE_OPTIONS
         } from './NER.js';
 
         let nerPipeline = null;
@@ -712,7 +783,15 @@ Example: Apple CEO Tim Cook announced the new iPhone at their headquarters in Cu
         const entityContent = document.getElementById('entity-content');
         const redactedContent = document.getElementById('redacted-content');
         const redactedMappingContent = document.getElementById('redacted-mapping-content');
+        const redactedToolbar = document.getElementById('redacted-toolbar');
+        const copyRedactedBtn = document.getElementById('copy-redacted-btn');
+        const downloadRedactedBtn = document.getElementById('download-redacted-btn');
+        const mappingToolbar = document.getElementById('mapping-toolbar');
+        const copyMappingBtn = document.getElementById('copy-mapping-btn');
+        const downloadMappingBtn = document.getElementById('download-mapping-btn');
         const tabs = document.querySelectorAll('.tab');
+        let currentRedactedText = ''; // Store plain text for copy/download
+        let currentMapping = []; // Store mapping for copy/download
         const tabContents = document.querySelectorAll('.tab-content');
         const subTabs = document.querySelectorAll('.sub-tab');
         const subTabContents = document.querySelectorAll('.sub-tab-content');
@@ -852,7 +931,7 @@ Example: Apple CEO Tim Cook announced the new iPhone at their headquarters in Cu
                     const chunk = chunks[i];
                     status.textContent = `Analyzing chunk ${i + 1} of ${chunks.length}...`;
 
-                    const chunkResults = await pipe(chunk.text, { aggregation_strategy: 'none' });
+                    const chunkResults = await pipe(chunk.text, PIPELINE_OPTIONS);
                     console.log(`Chunk ${i + 1} results:`, chunkResults);
 
                     // Adjust positions by chunk offset and add to results
@@ -952,6 +1031,10 @@ Example: Apple CEO Tim Cook announced the new iPhone at their headquarters in Cu
             const { redactedText, mapping } = generateRedactedText(text, entities);
 
             if (mapping.length === 0) {
+                currentRedactedText = text; // No redactions, use original text
+                currentMapping = [];
+                redactedToolbar.style.display = 'flex';
+                mappingToolbar.style.display = 'none';
                 redactedContent.innerHTML = `
                     <div class="redacted-text">${escapeHtml(text)}</div>
                     <p class="no-entities">No person names found to redact.</p>
@@ -959,6 +1042,12 @@ Example: Apple CEO Tim Cook announced the new iPhone at their headquarters in Cu
                 redactedMappingContent.innerHTML = '<p class="no-entities">No person names found to redact.</p>';
                 return;
             }
+
+            // Store plain text and mapping for copy/download
+            currentRedactedText = redactedText;
+            currentMapping = mapping;
+            redactedToolbar.style.display = 'flex';
+            mappingToolbar.style.display = 'flex';
 
             // Convert plain text redaction to HTML with styled labels
             let htmlRedactedText = escapeHtml(redactedText);
@@ -1012,9 +1101,75 @@ Example: Apple CEO Tim Cook announced the new iPhone at their headquarters in Cu
             entityContent.innerHTML = '<p class="no-entities">Run NER on some text to see results here.</p>';
             redactedContent.innerHTML = '<p class="no-entities">Run NER on some text to see redacted output here.</p>';
             redactedMappingContent.innerHTML = '<p class="no-entities">Run NER on some text to see redacted output here.</p>';
+            redactedToolbar.style.display = 'none';
+            mappingToolbar.style.display = 'none';
+            currentRedactedText = '';
+            currentMapping = [];
             // Clear status
             status.textContent = '';
             status.className = 'status';
+        });
+
+        // Copy redacted text to clipboard
+        copyRedactedBtn.addEventListener('click', async () => {
+            if (!currentRedactedText) return;
+            try {
+                await navigator.clipboard.writeText(currentRedactedText);
+                copyRedactedBtn.classList.add('copied');
+                setTimeout(() => {
+                    copyRedactedBtn.classList.remove('copied');
+                }, 1500);
+            } catch (err) {
+                console.error('Failed to copy:', err);
+                status.textContent = 'Failed to copy to clipboard';
+                status.className = 'status error';
+            }
+        });
+
+        // Download redacted text as .txt file
+        downloadRedactedBtn.addEventListener('click', () => {
+            if (!currentRedactedText) return;
+            const blob = new Blob([currentRedactedText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'redacted-text.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        // Copy mapping as JSON to clipboard
+        copyMappingBtn.addEventListener('click', async () => {
+            if (!currentMapping.length) return;
+            try {
+                const json = JSON.stringify(currentMapping, null, 2);
+                await navigator.clipboard.writeText(json);
+                copyMappingBtn.classList.add('copied');
+                setTimeout(() => {
+                    copyMappingBtn.classList.remove('copied');
+                }, 1500);
+            } catch (err) {
+                console.error('Failed to copy:', err);
+                status.textContent = 'Failed to copy to clipboard';
+                status.className = 'status error';
+            }
+        });
+
+        // Download mapping as .json file
+        downloadMappingBtn.addEventListener('click', () => {
+            if (!currentMapping.length) return;
+            const json = JSON.stringify(currentMapping, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'person-name-mapping.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         });
 
         fileInput.addEventListener('change', () => {

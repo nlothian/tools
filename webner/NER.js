@@ -113,16 +113,8 @@ function processEntities(text, rawEntities) {
     for (const entity of rawEntities) {
         const word = entity.word || entity.text || entity.token || '';
         const entityGroup = entity.entity_group || entity.entity || entity.label || 'UNKNOWN';
-
-        // Skip non-entity labels (O means "Outside" - not an entity)
-        // BUT keep tokens that:
-        // 1. Are subword tokens (##) - they should merge with previous entity
-        // 2. Have model-provided positions - they might be contiguous with an entity
         const isSubword = word.startsWith('##');
         const hasModelPositions = typeof entity.start === 'number' && typeof entity.end === 'number';
-        if ((entityGroup === 'O' || entityGroup === 'UNKNOWN') && !isSubword && !hasModelPositions) {
-            continue;
-        }
 
         // Get chunk info (for chunked processing)
         const chunkOffset = entity._chunkOffset || 0;
@@ -139,11 +131,11 @@ function processEntities(text, rawEntities) {
         let start, end;
         const cleanWord = word.replace(/^##/, '');
 
-        if (typeof entity.start === 'number' && typeof entity.end === 'number') {
+        if (hasModelPositions) {
             // Use model-provided positions (relative to chunk text)
             start = entity.start;
             end = entity.end;
-        } else if (word.startsWith('##')) {
+        } else if (isSubword) {
             // Sub-word token: starts immediately at current searchPos (no space)
             start = searchPos;
             end = start + cleanWord.length;
@@ -162,7 +154,17 @@ function processEntities(text, rawEntities) {
             end = start + cleanWord.length;
         }
 
-        searchPos = end; // Move search position forward within chunk
+        // Always advance search position, even if this token gets filtered out
+        searchPos = end;
+
+        // Skip non-entity labels (O means "Outside" - not an entity)
+        // BUT keep tokens that:
+        // 1. Are subword tokens (##) - they should merge with previous entity
+        // 2. Have model-provided positions - they might be contiguous with an entity
+        const isNonEntityLabel = entityGroup === 'O' || entityGroup === 'UNKNOWN';
+        if (isNonEntityLabel && !isSubword && !hasModelPositions) {
+            continue;
+        }
 
         // Add chunk offset to get position in full text
         const processed = {
@@ -216,38 +218,29 @@ function aggregateEntities(text, processedEntities) {
         // This handles cases where "Littleproud" is tokenized as "Little" + "proud"
         // and "proud" is tagged as O but should still be part of the name
         if (isContiguous && lastIsEntity) {
-            lastEntity.word += entity.word.replace(/^##/, '');
             lastEntity.end = entity.end;
-            lastEntity.score = Math.min(lastEntity.score, entity.score);
-        }
-        // Sub-word tokens (##) ALWAYS merge with previous entity
-        else if (isSubwordToken && lastEntity) {
-            lastEntity.word += entity.word.replace(/^##/, '');
-            lastEntity.end = entity.end;
+            // Update word from actual text to avoid tokenizer truncation issues
+            lastEntity.word = text.slice(lastEntity.start, lastEntity.end);
             lastEntity.score = Math.min(lastEntity.score, entity.score);
         }
         // Merge adjacent same-type entities (e.g., "Andrew" + "Hastie" = "Andrew Hastie")
         else if (lastEntity && sameType && isAdjacent) {
-            // Add space if there's a gap between entities
-            const gap = entity.start - lastEntity.end;
-            lastEntity.word += (gap > 0 ? ' ' : '') + entity.word;
             lastEntity.end = entity.end;
+            // Update word from actual text to avoid tokenizer truncation issues
+            lastEntity.word = text.slice(lastEntity.start, lastEntity.end);
             lastEntity.score = Math.min(lastEntity.score, entity.score);
         }
         // Otherwise start a new entity (but skip orphaned subword tokens tagged as non-entities)
         else {
             const isNonEntity = currentType === 'O' || currentType === 'UNKNOWN';
-            // Skip tokens that are contiguous with nothing or are orphaned subwords
-            if (isContiguous && isNonEntity) {
-                continue;
-            }
-            if (isSubwordToken && isNonEntity) {
-                // Skip subword tokens that couldn't be merged and aren't entities themselves
+            // Skip non-entity tokens unless they merged into a previous entity
+            if (isNonEntity) {
                 continue;
             }
             aggregatedEntities.push({
                 ...entity,
-                word: entity.word.replace(/^##/, '')
+                // Use actual text from positions to avoid tokenizer truncation
+                word: text.slice(entity.start, entity.end)
             });
         }
     }
@@ -307,7 +300,7 @@ function buildHighlightedText(text, entities) {
 }
 
 /**
- * Generate redacted text with person names replaced by REDACTED_X labels
+ * Generate redacted text with person names replaced by PERSON_X labels
  * @param {string} text - Original text
  * @param {Array} entities - Processed entities
  * @returns {{redactedText: string, mapping: Array<{original: string, redacted: string}>}} Redacted text and name mapping
@@ -329,7 +322,7 @@ function generateRedactedText(text, entities) {
     // Sort by position for consistent processing
     const sorted = [...personEntities].sort((a, b) => a.start - b.start);
 
-    // Build mapping of unique person names to REDACTED_X labels (case-insensitive)
+    // Build mapping of unique person names to PERSON_X labels (case-insensitive)
     const nameToRedaction = new Map();
     const normalizedToOriginal = new Map();
     let redactionCounter = 1;
@@ -338,7 +331,7 @@ function generateRedactedText(text, entities) {
         const name = text.slice(entity.start, entity.end);
         const normalizedName = name.toLowerCase();
         if (!nameToRedaction.has(normalizedName)) {
-            nameToRedaction.set(normalizedName, `REDACTED_${redactionCounter}`);
+            nameToRedaction.set(normalizedName, `PERSON_${redactionCounter}`);
             normalizedToOriginal.set(normalizedName, name);
             redactionCounter++;
         }
