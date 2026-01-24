@@ -792,6 +792,7 @@ Example: Apple CEO Tim Cook announced the new iPhone at their headquarters in Cu
         const tabs = document.querySelectorAll('.tab');
         let currentRedactedText = ''; // Store plain text for copy/download
         let currentMapping = []; // Store mapping for copy/download
+        let uploadedFileName = ''; // Store uploaded file name for download naming
         const tabContents = document.querySelectorAll('.tab-content');
         const subTabs = document.querySelectorAll('.sub-tab');
         const subTabContents = document.querySelectorAll('.sub-tab-content');
@@ -1095,7 +1096,7 @@ Example: Apple CEO Tim Cook announced the new iPhone at their headquarters in Cu
         });
 
         // Clear output when input text changes
-        textInput.addEventListener('input', () => {
+        textInput.addEventListener('input', (e) => {
             // Reset output to default state
             outputContent.innerHTML = '<p class="no-entities">Run NER on some text to see results here.</p>';
             entityContent.innerHTML = '<p class="no-entities">Run NER on some text to see results here.</p>';
@@ -1105,6 +1106,11 @@ Example: Apple CEO Tim Cook announced the new iPhone at their headquarters in Cu
             mappingToolbar.style.display = 'none';
             currentRedactedText = '';
             currentMapping = [];
+            // Clear uploaded filename if user is manually typing (not from file load)
+            // inputType is present for real user input, absent for programmatic dispatch
+            if (e.inputType) {
+                uploadedFileName = '';
+            }
             // Clear status
             status.textContent = '';
             status.className = 'status';
@@ -1126,6 +1132,19 @@ Example: Apple CEO Tim Cook announced the new iPhone at their headquarters in Cu
             }
         });
 
+        // Generate download filename based on uploaded file
+        function getRedactedFileName(extension) {
+            if (!uploadedFileName) {
+                return `redacted_text.${extension}`;
+            }
+            const lastDot = uploadedFileName.lastIndexOf('.');
+            if (lastDot === -1) {
+                return `${uploadedFileName}_redacted.${extension}`;
+            }
+            const baseName = uploadedFileName.substring(0, lastDot);
+            return `${baseName}_redacted.${extension}`;
+        }
+
         // Download redacted text as .txt file
         downloadRedactedBtn.addEventListener('click', () => {
             if (!currentRedactedText) return;
@@ -1133,7 +1152,7 @@ Example: Apple CEO Tim Cook announced the new iPhone at their headquarters in Cu
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'redacted-text.txt';
+            a.download = getRedactedFileName('txt');
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -1165,7 +1184,7 @@ Example: Apple CEO Tim Cook announced the new iPhone at their headquarters in Cu
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'person-name-mapping.json';
+            a.download = getRedactedFileName('json');
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -1175,6 +1194,9 @@ Example: Apple CEO Tim Cook announced the new iPhone at their headquarters in Cu
         fileInput.addEventListener('change', () => {
             const file = fileInput.files && fileInput.files[0];
             if (!file) return;
+
+            // Store filename for download naming
+            uploadedFileName = file.name;
 
             const reader = new FileReader();
             reader.onload = () => {
