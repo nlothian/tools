@@ -300,19 +300,36 @@ function buildHighlightedText(text, entities) {
 }
 
 /**
- * Generate redacted text with person names replaced by PERSON_X labels
+ * Generate redacted text with entities replaced by TYPE_X labels
  * @param {string} text - Original text
  * @param {Array} entities - Processed entities
- * @returns {{redactedText: string, mapping: Array<{original: string, redacted: string}>}} Redacted text and name mapping
+ * @param {Object} options - Redaction options
+ * @param {boolean} options.redactPeople - Whether to redact person names (default: true)
+ * @param {boolean} options.redactLocations - Whether to redact locations (default: false)
+ * @param {boolean} options.redactOrganizations - Whether to redact organizations (default: false)
+ * @returns {{redactedText: string, mapping: Array<{original: string, redacted: string, type: string}>}} Redacted text and entity mapping
  */
-function generateRedactedText(text, entities) {
-    // Filter to only PER (person) entities
-    const personEntities = entities.filter(e => {
+function generateRedactedText(text, entities, options = {}) {
+    const {
+        redactPeople = true,
+        redactLocations = false,
+        redactOrganizations = false
+    } = options;
+
+    // Map entity types to their label prefixes and enabled state
+    const typeConfig = {
+        'PER': { enabled: redactPeople, prefix: 'PERSON' },
+        'LOC': { enabled: redactLocations, prefix: 'LOCATION' },
+        'ORG': { enabled: redactOrganizations, prefix: 'ORGANIZATION' }
+    };
+
+    // Filter to only enabled entity types
+    const entitiesToRedact = entities.filter(e => {
         const type = e.entity_group.replace('B-', '').replace('I-', '');
-        return type === 'PER';
+        return typeConfig[type]?.enabled;
     });
 
-    if (personEntities.length === 0) {
+    if (entitiesToRedact.length === 0) {
         return {
             redactedText: text,
             mapping: []
@@ -320,20 +337,24 @@ function generateRedactedText(text, entities) {
     }
 
     // Sort by position for consistent processing
-    const sorted = [...personEntities].sort((a, b) => a.start - b.start);
+    const sorted = [...entitiesToRedact].sort((a, b) => a.start - b.start);
 
-    // Build mapping of unique person names to PERSON_X labels (case-insensitive)
-    const nameToRedaction = new Map();
+    // Build mapping of unique entities to TYPE_X labels (case-insensitive, per type)
+    const nameToRedaction = new Map(); // key: "type:normalizedName"
     const normalizedToOriginal = new Map();
-    let redactionCounter = 1;
+    const counters = { PER: 1, LOC: 1, ORG: 1 };
 
     for (const entity of sorted) {
+        const type = entity.entity_group.replace('B-', '').replace('I-', '');
         const name = text.slice(entity.start, entity.end);
         const normalizedName = name.toLowerCase();
-        if (!nameToRedaction.has(normalizedName)) {
-            nameToRedaction.set(normalizedName, `PERSON_${redactionCounter}`);
-            normalizedToOriginal.set(normalizedName, name);
-            redactionCounter++;
+        const key = `${type}:${normalizedName}`;
+
+        if (!nameToRedaction.has(key)) {
+            const prefix = typeConfig[type].prefix;
+            nameToRedaction.set(key, { label: `${prefix}_${counters[type]}`, type });
+            normalizedToOriginal.set(key, name);
+            counters[type]++;
         }
     }
 
@@ -351,9 +372,11 @@ function generateRedactedText(text, entities) {
     let lastEnd = 0;
 
     for (const entity of nonOverlapping) {
+        const type = entity.entity_group.replace('B-', '').replace('I-', '');
         const name = text.slice(entity.start, entity.end);
         const normalizedName = name.toLowerCase();
-        const redactionLabel = nameToRedaction.get(normalizedName);
+        const key = `${type}:${normalizedName}`;
+        const redactionLabel = nameToRedaction.get(key).label;
 
         // Add text before this entity
         redactedText += text.slice(lastEnd, entity.start);
@@ -368,9 +391,10 @@ function generateRedactedText(text, entities) {
     redactedText += text.slice(lastEnd);
 
     // Build mapping array
-    const mapping = Array.from(nameToRedaction.entries()).map(([normalizedName, label]) => ({
-        original: normalizedToOriginal.get(normalizedName),
-        redacted: label
+    const mapping = Array.from(nameToRedaction.entries()).map(([key, { label, type }]) => ({
+        original: normalizedToOriginal.get(key),
+        redacted: label,
+        type: typeConfig[type].prefix.toLowerCase()
     }));
 
     return { redactedText, mapping };
