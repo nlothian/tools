@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transcript Summarizer</title>
+
+  <!-- Cousine Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cousine:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS v4 -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+  <!-- Marked.js for Markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <style type="text/tailwindcss">
+    @theme {
+      /* Solarized Light Colors */
+      --color-base-3: #fdf6e3;
+      --color-base-2: #eee8d5;
+      --color-base-1: #93a1a1;
+      --color-base-00: #657b83;
+      --color-base-01: #586e75;
+
+      /* Accents */
+      --color-sol-cyan: #2aa198;
+      --color-sol-green: #859900;
+      --color-sol-yellow: #b58900;
+      --color-sol-orange: #cb4b16;
+      --color-sol-red: #dc322f;
+
+      /* Font */
+      --font-mono: 'Cousine', 'Monaco', 'Consolas', monospace;
+    }
+
+    /* Custom animations */
+    @keyframes fade-in-down {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fade-in-up {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(42, 161, 152, 0.4); }
+      50% { box-shadow: 0 0 0 8px rgba(42, 161, 152, 0); }
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* Thinking section toggle */
+    #thinking-chevron.expanded {
+      transform: rotate(90deg);
+    }
+
+  </style>
+</head>
+
+<body class="font-mono bg-base-3 text-base-00 min-h-screen">
+  <!-- Fixed background gradient -->
+  <div class="fixed inset-0 -z-10"
+       style="background:
+         linear-gradient(135deg, #fdf6e3 0%, #eee8d5 100%),
+         radial-gradient(circle at 20% 80%, rgba(42,161,152,0.08) 0%, transparent 50%);">
+  </div>
+
+  <!-- Header -->
+  <header class="sticky top-0 z-50 px-6 lg:px-12 py-4 border-b border-base-1/20 bg-base-3/90 backdrop-blur-sm
+                 animate-[fade-in-down_0.4s_cubic-bezier(0.4,0,0.2,1)_backwards]">
+    <nav class="flex justify-between items-center max-w-[1400px] mx-auto">
+      <div class="text-lg font-bold text-sol-cyan tracking-tight">
+        Transcript Summarizer
+      </div>
+      <div id="status-badge" class="flex items-center gap-2 text-sm">
+        <span class="w-2 h-2 rounded-full bg-base-1"></span>
+        <span id="status-text">Initializing...</span>
+      </div>
+    </nav>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-[1400px] mx-auto px-6 lg:px-12 py-8
+               animate-[fade-in-up_0.6s_cubic-bezier(0.4,0,0.2,1)_backwards]">
+
+    <!-- WebGPU Error Banner (hidden by default) -->
+    <div id="webgpu-error" class="hidden mb-6 p-4 bg-sol-red/10 border border-sol-red/30 rounded text-sol-red">
+      <strong>WebGPU Not Available</strong>
+      <p class="text-sm mt-1">This app requires WebGPU support. Please use Chrome 113+, Edge 113+, or Safari 18+.</p>
+    </div>
+
+    <!-- Context Limit Error Banner (hidden by default) -->
+    <div id="context-error" class="hidden mb-6 p-4 bg-sol-orange/10 border border-sol-orange/30 rounded text-sol-orange">
+      <strong>Input Too Long</strong>
+      <p id="context-error-message" class="text-sm mt-1"></p>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="space-y-6">
+
+        <!-- Input Section -->
+        <section class="bg-base-2 border border-base-1/20 rounded p-6
+                        shadow-[0_2px_8px_rgba(101,123,131,0.08)]">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-semibold">Input Transcript</h2>
+            <span id="token-count" class="text-xs text-base-1">0 / 20,000 tokens</span>
+          </div>
+
+          <textarea
+            id="transcript-input"
+            placeholder="Paste your transcript here, or upload a file..."
+            class="w-full h-64 px-4 py-3 bg-base-3 border border-base-1/20 rounded
+                   text-[13px] text-base-00 font-mono resize-y
+                   transition-all duration-200
+                   focus:outline-none focus:border-sol-cyan focus:ring-[3px] focus:ring-sol-cyan/20"
+          ></textarea>
+
+          <div class="flex flex-wrap items-center justify-between gap-3 mt-4">
+            <div class="flex flex-wrap gap-3">
+              <label class="bg-transparent text-base-00 border border-base-1/30 px-5 py-2 text-sm rounded cursor-pointer
+                            transition-all duration-150
+                            hover:bg-base-3 hover:border-sol-cyan">
+                <input type="file" id="file-upload" accept=".txt,.md,.vtt" class="hidden">
+                Upload File
+              </label>
+
+              <button
+                id="summarize-btn"
+                disabled
+                class="bg-sol-cyan text-base-3 px-6 py-2 text-sm font-semibold rounded
+                       transition-all duration-150
+                       hover:shadow-[0_4px_12px_rgba(42,161,152,0.3)] hover:-translate-y-0.5
+                       active:scale-[0.98]
+                       disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:hover:translate-y-0">
+                Summarize
+              </button>
+
+              <button
+                id="stop-btn"
+                class="hidden bg-sol-orange text-base-3 px-6 py-2 text-sm font-semibold rounded
+                       transition-all duration-150
+                       hover:shadow-[0_4px_12px_rgba(203,75,22,0.3)]">
+                Stop
+              </button>
+            </div>
+
+            <!-- Model Status (inline, right-aligned) -->
+            <div id="loading-section" class="text-right text-xs text-base-01">
+              <span id="loading-message">Checking WebGPU...</span>
+              <div id="progress-container" class="inline-block ml-2"></div>
+              <button
+                id="load-model-btn"
+                class="hidden ml-2 bg-sol-cyan text-base-3 px-3 py-1 text-xs font-semibold rounded
+                       transition-all duration-150
+                       hover:shadow-[0_4px_12px_rgba(42,161,152,0.3)]">
+                Load Model
+              </button>
+            </div>
+
+            <!-- Stats (inline, right-aligned, shown after completion) -->
+            <div id="stats-section" class="hidden text-right text-xs text-base-01">
+              <span id="stat-tokens">--</span> tokens |
+              <span id="stat-chars">--</span> chars |
+              <span id="stat-topics">--</span> topics
+            </div>
+          </div>
+        </section>
+
+        <!-- Thinking Section (collapsible) -->
+        <section id="thinking-section" class="hidden bg-base-2 border border-base-1/20 rounded p-6
+                        shadow-[0_2px_8px_rgba(101,123,131,0.08)]">
+          <button id="thinking-toggle" class="w-full flex justify-between items-center text-left">
+            <div class="flex items-center gap-2">
+              <span id="thinking-chevron" class="text-base-1 transition-transform duration-200">&#9654;</span>
+              <h2 class="text-lg font-semibold">Thinking</h2>
+              <span id="thinking-status" class="text-xs text-base-1">(reasoning...)</span>
+            </div>
+          </button>
+          <div id="thinking-content" class="mt-4">
+            <pre id="thinking-output" class="text-[12px] text-base-01 whitespace-pre-wrap max-h-64 overflow-y-auto"></pre>
+          </div>
+        </section>
+
+        <!-- Output Section -->
+        <section id="output-section" class="hidden bg-base-2 border border-base-1/20 rounded p-6
+                        shadow-[0_2px_8px_rgba(101,123,131,0.08)]">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-semibold">Summary</h2>
+            <div class="flex gap-2">
+              <button id="copy-btn" class="text-xs text-sol-cyan hover:underline">Copy</button>
+              <button id="download-btn" class="text-xs text-sol-cyan hover:underline">Download</button>
+            </div>
+          </div>
+
+          <div id="summary-output" class="prose prose-sm max-w-none text-[13px] leading-relaxed">
+            <!-- Summary will be rendered here -->
+          </div>
+        </section>
+
+        <!-- Streaming Preview (shown during processing) -->
+        <section id="streaming-section" class="hidden bg-base-2 border border-base-1/20 border-l-[3px] border-l-sol-cyan rounded p-6">
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="text-sm font-semibold">Generating Summary</h3>
+            <span id="tps-display" class="text-xs text-base-1">-- tokens/sec</span>
+          </div>
+          <pre id="streaming-output" class="text-[12px] text-base-01 whitespace-pre-wrap max-h-48 overflow-y-auto"></pre>
+        </section>
+    </div>
+  </main>
+
+  <script type="module">
+    // =========================================================================
+    // Configuration
+    // =========================================================================
+    const CONFIG = {
+      // Context window management (Qwen3-0.6B has ~32K context)
+      // WebGPU logits tensor: [1, seq_len, 151936] must fit in GPU memory
+      // At ~13K tokens, tensor is ~4GB which exceeds WebGPU limits
+      CONTEXT_WINDOW: 32000,
+      MAX_INPUT_TOKENS: 8000,       // Safe limit for WebGPU memory constraints
+      CHARS_PER_TOKEN: 4,           // Estimation heuristic
+
+      // Generation
+      MAX_NEW_TOKENS: 10000,
+      TEMPERATURE: 0.7,
+      TOP_K: 20,
+    };
+
+    // Derived value
+    CONFIG.MAX_INPUT_CHARS = CONFIG.MAX_INPUT_TOKENS * CONFIG.CHARS_PER_TOKEN;
+
+    // =========================================================================
+    // State
+    // =========================================================================
+    let state = {
+      status: 'initializing', // initializing, webgpu-error, ready-to-load, loading, ready, processing, complete
+      worker: null,
+      finalOutput: '',
+      tokenizer: null,
+      tokenizerReady: false,
+      // Thinking state (for Qwen's <think>...</think> blocks)
+      thinkingContent: '',
+      summaryContent: '',
+      isInsideThinkBlock: false,
+    };
+
+    // =========================================================================
+    // Tokenizer Initialization
+    // =========================================================================
+    async function initTokenizer() {
+      try {
+        const { Tiktoken } = await import("https://esm.sh/js-tiktoken@1.0.12/lite");
+        const res = await fetch("https://tiktoken.pages.dev/js/o200k_base.json");
+        const o200k_base = await res.json();
+        state.tokenizer = new Tiktoken(o200k_base);
+        state.tokenizerReady = true;
+      } catch (e) {
+        console.warn("Failed to load tiktoken, using character estimation:", e);
+        state.tokenizerReady = false;
+      }
+    }
+
+    function countTokens(text) {
+      if (state.tokenizerReady && state.tokenizer) {
+        return { count: state.tokenizer.encode(text).length, estimated: false };
+      }
+      return { count: Math.ceil(text.length / CONFIG.CHARS_PER_TOKEN), estimated: true };
+    }
+
+    // =========================================================================
+    // DOM Elements
+    // =========================================================================
+    const elements = {
+      statusBadge: document.getElementById('status-badge'),
+      statusText: document.getElementById('status-text'),
+      webgpuError: document.getElementById('webgpu-error'),
+      contextError: document.getElementById('context-error'),
+      contextErrorMessage: document.getElementById('context-error-message'),
+      transcriptInput: document.getElementById('transcript-input'),
+      tokenCount: document.getElementById('token-count'),
+      fileUpload: document.getElementById('file-upload'),
+      summarizeBtn: document.getElementById('summarize-btn'),
+      stopBtn: document.getElementById('stop-btn'),
+      outputSection: document.getElementById('output-section'),
+      summaryOutput: document.getElementById('summary-output'),
+      streamingSection: document.getElementById('streaming-section'),
+      streamingOutput: document.getElementById('streaming-output'),
+      tpsDisplay: document.getElementById('tps-display'),
+      loadingSection: document.getElementById('loading-section'),
+      loadingMessage: document.getElementById('loading-message'),
+      progressContainer: document.getElementById('progress-container'),
+      loadModelBtn: document.getElementById('load-model-btn'),
+      statsSection: document.getElementById('stats-section'),
+      copyBtn: document.getElementById('copy-btn'),
+      downloadBtn: document.getElementById('download-btn'),
+      // Thinking section elements
+      thinkingSection: document.getElementById('thinking-section'),
+      thinkingToggle: document.getElementById('thinking-toggle'),
+      thinkingChevron: document.getElementById('thinking-chevron'),
+      thinkingStatus: document.getElementById('thinking-status'),
+      thinkingContent: document.getElementById('thinking-content'),
+      thinkingOutput: document.getElementById('thinking-output'),
+    };
+
+    // =========================================================================
+    // UI Updates
+    // =========================================================================
+    function updateStatus(status, text) {
+      state.status = status;
+      elements.statusText.textContent = text;
+
+      // Update status dot color
+      const dot = elements.statusBadge.querySelector('span:first-child');
+      dot.className = 'w-2 h-2 rounded-full';
+
+      switch (status) {
+        case 'ready':
+          dot.classList.add('bg-sol-green');
+          break;
+        case 'processing':
+          dot.classList.add('bg-sol-cyan', 'animate-[pulse-glow_2s_infinite]');
+          break;
+        case 'loading':
+          dot.classList.add('bg-sol-yellow');
+          break;
+        case 'webgpu-error':
+          dot.classList.add('bg-sol-red');
+          break;
+        default:
+          dot.classList.add('bg-base-1');
+      }
+
+      // Update button states
+      elements.summarizeBtn.disabled = status !== 'ready' || !elements.transcriptInput.value.trim();
+    }
+
+    let tokenCountTimeout = null;
+
+    function updateTokenCount() {
+      clearTimeout(tokenCountTimeout);
+
+      tokenCountTimeout = setTimeout(() => {
+        const text = elements.transcriptInput.value;
+        const { count, estimated } = countTokens(text);
+
+        // Update display
+        const limitText = `${count.toLocaleString()} / ${CONFIG.MAX_INPUT_TOKENS.toLocaleString()} tokens`;
+        const estimateIndicator = estimated ? ' (est.)' : '';
+        elements.tokenCount.textContent = limitText + estimateIndicator;
+
+        // Color coding based on usage
+        elements.tokenCount.classList.remove('text-base-1', 'text-sol-yellow', 'text-sol-red');
+
+        if (count > CONFIG.MAX_INPUT_TOKENS) {
+          elements.tokenCount.classList.add('text-sol-red');
+        } else if (count > CONFIG.MAX_INPUT_TOKENS * 0.8) {
+          elements.tokenCount.classList.add('text-sol-yellow');
+        } else {
+          elements.tokenCount.classList.add('text-base-1');
+        }
+
+        // Update button state
+        elements.summarizeBtn.disabled = state.status !== 'ready' || count === 0 || count > CONFIG.MAX_INPUT_TOKENS;
+
+        // Show/hide context error
+        if (count > CONFIG.MAX_INPUT_TOKENS) {
+          elements.contextError.classList.remove('hidden');
+          elements.contextErrorMessage.textContent =
+            `Your transcript has ${count.toLocaleString()} tokens, which exceeds the ${CONFIG.MAX_INPUT_TOKENS.toLocaleString()} token limit. Please shorten it or split into smaller sections.`;
+        } else {
+          elements.contextError.classList.add('hidden');
+        }
+      }, 300); // Debounce 300ms
+    }
+
+    // =========================================================================
+    // Prompt Builder
+    // =========================================================================
+    function buildPrompt(text) {
+      // Note: token validation happens before this function is called
+      return `Summarize the following transcript into a comprehensive summary of the conversation. It should be divided into a number of high level topics, with important points as bullet points under each one.
+
+Carefully look for tasks to be completed and be sure to summarize them into a "Next Steps" section
+
+Transcript:
+---
+${text}
+---`;
+    }
+
+    function countTopicsInOutput(text) {
+      const matches = text.match(/^## /gm);
+      return matches ? matches.length : 0;
+    }
+
+    // =========================================================================
+    // Think Tag Parser (for Qwen's <think>...</think> blocks)
+    // =========================================================================
+    function parseThinkContent(fullText) {
+      // Check if it starts with <think>
+      if (!fullText.startsWith('<think>')) {
+        return { thinking: '', summary: fullText, isInsideThink: false };
+      }
+
+      // Remove the opening <think> tag
+      const afterOpen = fullText.slice('<think>'.length);
+
+      // Check for closing </think> tag
+      const closeIndex = afterOpen.indexOf('</think>');
+
+      if (closeIndex === -1) {
+        // No closing tag yet - still inside think block
+        return {
+          thinking: afterOpen.trim(),
+          summary: '',
+          isInsideThink: true
+        };
+      }
+
+      // Has closing tag - split into thinking and summary
+      return {
+        thinking: afterOpen.slice(0, closeIndex).trim(),
+        summary: afterOpen.slice(closeIndex + '</think>'.length).trim(),
+        isInsideThink: false
+      };
+    }
+
+    // =========================================================================
+    // Thinking Section UI
+    // =========================================================================
+    function updateThinkingUI(thinking, isComplete) {
+      if (thinking) {
+        elements.thinkingSection.classList.remove('hidden');
+        elements.thinkingOutput.textContent = thinking;
+
+        if (isComplete) {
+          elements.thinkingStatus.textContent = '(complete)';
+          collapseThinking();
+        } else {
+          elements.thinkingStatus.textContent = '(reasoning...)';
+          expandThinking();
+        }
+      }
+    }
+
+    function expandThinking() {
+      elements.thinkingContent.classList.remove('hidden');
+      elements.thinkingChevron.classList.add('expanded');
+    }
+
+    function collapseThinking() {
+      elements.thinkingContent.classList.add('hidden');
+      elements.thinkingChevron.classList.remove('expanded');
+    }
+
+    function toggleThinking() {
+      elements.thinkingContent.classList.toggle('hidden');
+      elements.thinkingChevron.classList.toggle('expanded');
+    }
+
+    // =========================================================================
+    // Worker Communication
+    // =========================================================================
+    let generateResolve = null;
+
+    function initWorker() {
+      state.worker = new Worker('./summary-worker.js?v=' + Date.now(), { type: 'module' });
+
+      state.worker.addEventListener('message', (e) => {
+        const { status, nodeId, output, tps, numTokens, data, file, name, loaded, total } = e.data;
+
+        switch (status) {
+          case 'webgpu-ok':
+            updateStatus('loading', 'Loading model...');
+            elements.loadModelBtn.classList.add('hidden');
+            loadModel();
+            break;
+
+          case 'loading':
+            updateStatus('loading', data);
+            elements.loadingMessage.textContent = data;
+            elements.loadModelBtn.classList.add('hidden');
+            break;
+
+          case 'initiate':
+          case 'progress':
+            // Track download progress
+            const fileName = file || name;
+            const existing = Array.from(elements.progressContainer.children).find(
+              el => el.dataset.file === fileName
+            );
+
+            // Check if loaded from cache (loads instantly with loaded === total)
+            const isCached = status === 'progress' && loaded === total && total > 0;
+
+            if (!existing) {
+              const div = document.createElement('div');
+              div.dataset.file = fileName;
+              div.className = 'text-xs';
+              div.innerHTML = `
+                <div class="flex justify-between mb-1">
+                  <span class="truncate max-w-[200px]">${fileName}</span>
+                  <span class="progress-pct">${isCached ? 'cached' : '0%'}</span>
+                </div>
+                <div class="h-1 bg-base-3 rounded overflow-hidden">
+                  <div class="progress-bar h-full ${isCached ? 'bg-sol-green' : 'bg-sol-cyan'} transition-all" style="width: ${isCached ? '100' : '0'}%"></div>
+                </div>
+              `;
+              elements.progressContainer.appendChild(div);
+            }
+
+            const container = elements.progressContainer.querySelector(`[data-file="${fileName}"]`);
+            if (container && loaded !== undefined && total !== undefined) {
+              const pct = Math.round((loaded / total) * 100);
+              const cachedNow = loaded === total && total > 0;
+              container.querySelector('.progress-pct').textContent = cachedNow ? 'cached' : `${pct}%`;
+              container.querySelector('.progress-bar').style.width = `${pct}%`;
+              if (cachedNow) {
+                container.querySelector('.progress-bar').classList.replace('bg-sol-cyan', 'bg-sol-green');
+              }
+            }
+            break;
+
+          case 'done':
+            const doneEl = elements.progressContainer.querySelector(`[data-file="${file || name}"]`);
+            if (doneEl) doneEl.remove();
+            break;
+
+          case 'ready':
+            updateStatus('ready', 'Ready');
+            elements.loadingMessage.textContent = 'Model loaded (cached)';
+            elements.progressContainer.innerHTML = '';
+            break;
+
+          case 'start':
+            elements.streamingOutput.textContent = '';
+            break;
+
+          case 'update':
+            // Parse think tags from accumulated output
+            const { thinking, summary, isInsideThink } = parseThinkContent(output);
+            // Debug: log first 100 chars to see if think tags are present
+            if (output.length < 50) console.log('Output start:', JSON.stringify(output));
+
+            state.thinkingContent = thinking;
+            state.summaryContent = summary;
+            state.isInsideThinkBlock = isInsideThink;
+
+            // Update thinking section
+            const thinkingComplete = !isInsideThink && thinking.length > 0;
+            updateThinkingUI(thinking, thinkingComplete);
+
+            // Update streaming output - only show summary content, not thinking
+            if (isInsideThink) {
+              // Still in thinking phase - show placeholder in streaming area
+              elements.streamingOutput.textContent = '';
+            } else {
+              // Show summary content only
+              elements.streamingOutput.textContent = summary;
+            }
+
+            if (tps) {
+              elements.tpsDisplay.textContent = `${tps.toFixed(1)} tokens/sec`;
+            }
+            break;
+
+          case 'complete':
+            if (generateResolve) {
+              const finalParsed = parseThinkContent(output);
+              state.thinkingContent = finalParsed.thinking;
+              generateResolve(finalParsed.summary || output);
+              generateResolve = null;
+            }
+            break;
+
+          case 'error':
+            console.error('Worker error:', data, 'Type:', e.data.errorType);
+            const errorType = e.data.errorType;
+
+            if (errorType === 'context-limit') {
+              // Show context-specific error, not WebGPU error
+              elements.contextError.classList.remove('hidden');
+              elements.contextErrorMessage.textContent = data;
+              updateStatus('ready', 'Ready');
+            } else if (data.includes('WebGPU is not supported')) {
+              // Only show WebGPU error for actual browser compatibility issues
+              elements.webgpuError.classList.remove('hidden');
+              updateStatus('webgpu-error', 'WebGPU Error');
+            } else {
+              elements.loadingMessage.textContent = `Error: ${data}`;
+            }
+
+            if (generateResolve) {
+              generateResolve(null);
+              generateResolve = null;
+            }
+            break;
+        }
+      });
+
+      // Check WebGPU
+      state.worker.postMessage({ type: 'check' });
+    }
+
+    function loadModel() {
+      state.worker.postMessage({ type: 'load' });
+    }
+
+    async function generateSummary(nodeId, prompt) {
+      return new Promise((resolve) => {
+        generateResolve = resolve;
+        state.worker.postMessage({
+          type: 'generate',
+          data: { nodeId, prompt, maxNewTokens: CONFIG.MAX_NEW_TOKENS },
+        });
+      });
+    }
+
+    // =========================================================================
+    // Summarization Pipeline
+    // =========================================================================
+    async function processPipeline() {
+      const text = elements.transcriptInput.value.trim();
+      if (!text) return;
+
+      // Pre-submit token validation
+      const { count: tokenCount } = countTokens(text);
+      if (tokenCount > CONFIG.MAX_INPUT_TOKENS) {
+        elements.contextError.classList.remove('hidden');
+        elements.contextErrorMessage.textContent =
+          `Cannot summarize: ${tokenCount.toLocaleString()} tokens exceeds the ${CONFIG.MAX_INPUT_TOKENS.toLocaleString()} token limit.`;
+        return;
+      }
+
+      // Hide any previous context errors
+      elements.contextError.classList.add('hidden');
+
+      // Reset thinking state
+      elements.thinkingSection.classList.add('hidden');
+      state.thinkingContent = '';
+      state.summaryContent = '';
+      state.isInsideThinkBlock = false;
+
+      // Update UI
+      updateStatus('processing', 'Processing...');
+      elements.summarizeBtn.classList.add('hidden');
+      elements.stopBtn.classList.remove('hidden');
+      elements.outputSection.classList.add('hidden');
+      elements.streamingSection.classList.remove('hidden');
+      elements.statsSection.classList.add('hidden');
+      elements.loadingSection.classList.remove('hidden');
+
+      const prompt = buildPrompt(text);
+      const output = await generateSummary('summary', prompt);
+
+      if (state.status !== 'processing') {
+        resetUI();
+        return;
+      }
+
+      state.finalOutput = output || '(No summary generated)';
+
+      // Finalize thinking UI
+      if (state.thinkingContent) {
+        updateThinkingUI(state.thinkingContent, true);
+      }
+
+      // Show results
+      elements.summaryOutput.innerHTML = marked.parse(state.finalOutput);
+      elements.outputSection.classList.remove('hidden');
+      elements.streamingSection.classList.add('hidden');
+      elements.loadingSection.classList.add('hidden');
+      elements.statsSection.classList.remove('hidden');
+
+      const { count: inputTokens } = countTokens(text);
+      document.getElementById('stat-tokens').textContent = inputTokens.toLocaleString();
+      document.getElementById('stat-chars').textContent = text.length.toLocaleString();
+      document.getElementById('stat-topics').textContent = countTopicsInOutput(state.finalOutput);
+
+      // Reset
+      updateStatus('ready', 'Ready');
+      elements.summarizeBtn.classList.remove('hidden');
+      elements.stopBtn.classList.add('hidden');
+    }
+
+    function resetUI() {
+      updateStatus('ready', 'Ready');
+      elements.summarizeBtn.classList.remove('hidden');
+      elements.stopBtn.classList.add('hidden');
+      elements.streamingSection.classList.add('hidden');
+      // Reset thinking state
+      elements.thinkingSection.classList.add('hidden');
+      state.thinkingContent = '';
+      state.summaryContent = '';
+      state.isInsideThinkBlock = false;
+      // Show loading section, hide stats
+      elements.loadingSection.classList.remove('hidden');
+      elements.statsSection.classList.add('hidden');
+    }
+
+    function stopProcessing() {
+      state.status = 'ready';
+      state.worker.postMessage({ type: 'interrupt' });
+      resetUI();
+    }
+
+    // =========================================================================
+    // Event Handlers
+    // =========================================================================
+    elements.transcriptInput.addEventListener('input', updateTokenCount);
+
+    elements.fileUpload.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const text = await file.text();
+      elements.transcriptInput.value = text;
+      updateTokenCount();
+    });
+
+    elements.loadModelBtn.addEventListener('click', loadModel);
+    elements.summarizeBtn.addEventListener('click', processPipeline);
+    elements.stopBtn.addEventListener('click', stopProcessing);
+    elements.thinkingToggle.addEventListener('click', toggleThinking);
+
+    elements.copyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(state.finalOutput);
+      elements.copyBtn.textContent = 'Copied!';
+      setTimeout(() => elements.copyBtn.textContent = 'Copy', 2000);
+    });
+
+    elements.downloadBtn.addEventListener('click', () => {
+      const blob = new Blob([state.finalOutput], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'summary.md';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // =========================================================================
+    // Initialize
+    // =========================================================================
+    initTokenizer().then(() => updateTokenCount());
+    initWorker();
+  </script>
+</body>
+</html>
