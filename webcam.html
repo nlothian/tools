@@ -39,8 +39,8 @@
         }
         
         #ascii {
-            font-size: 8px;
-            line-height: 8px;
+            font-size: 16px;
+            line-height: 16px;
             letter-spacing: 0px;
             white-space: pre;
             color: #d4af37;
@@ -116,20 +116,20 @@
             <button id="invertBtn">Invert</button>
         </div>
         <div class="control-group">
-            <label>Resolution: <span id="resValue">80</span></label><br>
-            <input type="range" id="resolution" min="40" max="150" value="80">
+            <label>Resolution: <span id="resValue">150</span></label><br>
+            <input type="range" id="resolution" min="40" max="300" value="150">
         </div>
         <div class="control-group">
-            <label>Brightness: <span id="brightValue">1.0</span></label><br>
-            <input type="range" id="brightness" min="0.5" max="2.0" step="0.1" value="1.0">
+            <label>Brightness: <span id="brightValue">2.0</span></label><br>
+            <input type="range" id="brightness" min="0.5" max="5.0" step="0.1" value="2.0">
         </div>
         <div class="control-group">
-            <label>Contrast: <span id="contrastValue">1.0</span></label><br>
-            <input type="range" id="contrast" min="0.5" max="2.0" step="0.1" value="1.0">
+            <label>Contrast: <span id="contrastValue">2.0</span></label><br>
+            <input type="range" id="contrast" min="0.5" max="5.0" step="0.1" value="2.0">
         </div>
         <div class="control-group">
-            <label>Font Size: <span id="fontValue">8</span>px</label><br>
-            <input type="range" id="fontSize" min="4" max="16" step="1" value="8">
+            <label>Font Size: <span id="fontValue">16</span>px</label><br>
+            <input type="range" id="fontSize" min="4" max="32" step="1" value="16">
         </div>
     </div>
     
@@ -149,10 +149,10 @@
         ];
         
         let isInverted = false;
-        let resolution = 80;
-        let brightnessVal = 1.0;
-        let contrastVal = 1.0;
-        let fontSizeVal = 8;
+        let resolution = 150;
+        let brightnessVal = 2.0;
+        let contrastVal = 2.0;
+        let fontSizeVal = 16;
         
         // Controls
         document.getElementById('startBtn').addEventListener('click', startCamera);
