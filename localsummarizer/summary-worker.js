@@ -19,17 +19,31 @@ const stopping_criteria = new InterruptableStoppingCriteria();
 class SummarizationPipeline {
   static tokenizer = null;
   static model = null;
+  static currentDevice = null;
 
-  static async getInstance(progress_callback = null) {
+  static async getInstance(progress_callback = null, device = "webgpu") {
+    // If device changed, we need to reload
+    if (this.currentDevice && this.currentDevice !== device) {
+      this.tokenizer = null;
+      this.model = null;
+    }
+    this.currentDevice = device;
+
     this.tokenizer ??= AutoTokenizer.from_pretrained(MODEL_ID, {
       progress_callback,
     });
 
-    this.model ??= AutoModelForCausalLM.from_pretrained(MODEL_ID, {
-      dtype: "q4f16",
-      device: "webgpu",
+    const modelOptions = {
+      dtype: device === "webgpu" ? "q4f16" : "q4",
       progress_callback,
-    });
+    };
+
+    // Only set device for WebGPU, WASM is the default
+    if (device === "webgpu") {
+      modelOptions.device = "webgpu";
+    }
+
+    this.model ??= AutoModelForCausalLM.from_pretrained(MODEL_ID, modelOptions);
 
     return Promise.all([this.tokenizer, this.model]);
   }
@@ -58,18 +72,20 @@ async function check() {
 
 /**
  * Load the model with progress reporting
+ * @param {string} device - 'webgpu' or 'wasm'
  */
-async function load() {
+async function load(device = "webgpu") {
+  const deviceLabel = device === "webgpu" ? "WebGPU" : "CPU/WASM";
   self.postMessage({
     status: "loading",
-    data: "Loading model...",
+    data: `Loading model (${deviceLabel})...`,
   });
 
   try {
     const [tokenizer, model] = await SummarizationPipeline.getInstance((x) => {
       // Forward progress events to main thread
       self.postMessage(x);
-    });
+    }, device);
 
     self.postMessage({
       status: "loading",
@@ -225,8 +241,13 @@ self.addEventListener("message", async (e) => {
       check();
       break;
 
+    case "check-wasm":
+      // WASM is always available, no check needed
+      self.postMessage({ status: "wasm-ok" });
+      break;
+
     case "load":
-      load();
+      load(data?.device || "webgpu");
       break;
 
     case "generate":

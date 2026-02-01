@@ -8,10 +8,17 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cousine:wght@400;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/gpt-tokenizer@3.4.0/dist/o200k_base.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gpt-tokenizer@3.4.0/dist/o200k_base.min.js"
+            integrity="sha384-2mbc10In+5hSH3viAU7PCmy1WiTNtRVHTf34Xg/a3e4UWNcWFuDtNuEOvfYwReSh"
+            crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.1.18/dist/index.global.js"
+            integrity="sha384-y0axVOJIfo0bJOmTOnyRyUjrqjUotl7L/k6mzSwu2SSrB3r7P+b0cSFkiod+js0X"
+            crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"
+            integrity="sha384-eEu5CTj3qGvu9PdJuS+YlkNi7d2XxQROAFYOr59zgObtlcux1ae1Il3u7jvdCSWu"
+            crossorigin="anonymous"></script>
     <script type="module">
-      import { marked } from "https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js";
+      import { marked } from "https://cdn.jsdelivr.net/npm/marked@17.0.1/lib/marked.esm.js";
       window.marked = marked;
     </script>
     <script type="module">
@@ -1932,15 +1939,15 @@
             if (markdownPanel) {
                 if (status === 'success') {
                     if (window.marked) {
-                        markdownPanel.innerHTML = window.marked.parse(rawText);
+                        markdownPanel.innerHTML = DOMPurify.sanitize(window.marked.parse(rawText));
                     } else {
                         markdownPanel.textContent = rawText;
                     }
                 } else {
                     if (errorHtml) {
-                        markdownPanel.innerHTML = errorHtml;
+                        markdownPanel.innerHTML = DOMPurify.sanitize(errorHtml);
                     } else {
-                        markdownPanel.innerHTML = `<p class="text-sol-red">${rawText || 'No content'}</p>`;
+                        markdownPanel.innerHTML = DOMPurify.sanitize(`<p class="text-sol-red">${rawText || 'No content'}</p>`);
                     }
                 }
             }
@@ -2146,10 +2153,11 @@
                 }
             });
 
-            const response = await fetch(`${API_CONFIGS.gemini.endpoint}/${model}:generateContent?key=${apiKey}`, {
+            const response = await fetch(`${API_CONFIGS.gemini.endpoint}/${model}:generateContent`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'x-goog-api-key': apiKey
                 },
                 body: JSON.stringify({
                     contents: [{
@@ -2764,6 +2772,12 @@
 
         </script>
         <footer class="max-w-6xl mx-auto mt-12 pb-8 flex flex-wrap justify-center gap-4 text-xs tracking-wide text-base-1">
+            <span class="text-base-01">A tool by Nick Lothian © 2026</span>
+            <span class="text-base-01">·</span>
+            <a href="https://x.com/nlothian" class="text-sol-cyan hover:text-base-01 transition-colors">X</a>
+            <span class="text-base-01">·</span>
+            <a href="https://bsky.app/profile/nlothian.bsky.social" class="text-sol-cyan hover:text-base-01 transition-colors">Bluesky</a>
+            <span class="text-base-01">·</span>
             <a href="https://github.com/nlothian/tools/blob/main/llm_comparator.html" class="text-sol-cyan hover:text-base-01 transition-colors">source code</a>
             <span class="text-base-01">·</span>
             <a href="https://github.com/nlothian/tools/blob/main/LICENSE" class="text-sol-cyan hover:text-base-01 transition-colors">License</a>
