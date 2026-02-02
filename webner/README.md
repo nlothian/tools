@@ -13,11 +13,13 @@ A privacy-focused tool that identifies and redacts named entities (people, locat
 
 ## Usage
 
-### Option 1: Open directly in browser
+### Option 1: Open directly in browserUse my hosted version
 
-Download `index.html` and `NER.js`, then open `index.html` in your browser.
+[Download `index.html` and `NER.js`, then open `index.html` in your browser.](https://tools.nicklothian.com/webner/index.html)
 
 ### Option 2: Serve locally
+
+Download this folder, then:
 
 ```bash
 # Using Python
