@@ -82,7 +82,7 @@
       gap: 0.5rem;
     }
     
-    .mode-btn {
+    .pill-btn {
       padding: 0.375rem 0.75rem;
       border-radius: 9999px;
       font-size: 0.875rem;
@@ -92,12 +92,12 @@
       cursor: pointer;
       transition: all 0.15s;
     }
-    
-    .mode-btn:hover {
+
+    .pill-btn:hover {
       background: #f8fafc;
     }
-    
-    .mode-btn.active {
+
+    .pill-btn.active {
       background: #0f172a;
       color: white;
       border-color: #0f172a;
@@ -148,19 +148,7 @@
       margin-top: 0.5rem;
     }
     
-    .preset-btn {
-      padding: 0.375rem 0.75rem;
-      border-radius: 9999px;
-      font-size: 0.875rem;
-      border: 1px solid #e2e8f0;
-      background: white;
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-    
-    .preset-btn:hover {
-      background: #f8fafc;
-    }
+    /* .preset-btn uses .pill-btn base styles */
     
     .fpc-box {
       border-radius: 1rem;
@@ -442,25 +430,10 @@
       flex-wrap: wrap;
     }
 
+    /* sweep-tab overrides pill-btn with different padding and border-radius */
     .sweep-tab {
       padding: 0.5rem 1rem;
       border-radius: 0.5rem;
-      font-size: 0.875rem;
-      border: 1px solid #e2e8f0;
-      background: white;
-      color: #334155;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-
-    .sweep-tab:hover {
-      background: #f8fafc;
-    }
-
-    .sweep-tab.active {
-      background: #0f172a;
-      color: white;
-      border-color: #0f172a;
     }
 
     .sweep-tab-panel {
@@ -485,9 +458,9 @@
         <div class="card-header">
           <h2>Inputs</h2>
           <div class="mode-buttons">
-            <button class="mode-btn active" id="mode-successes" onclick="setMode('successes')">Use successes (x)</button>
-            <button class="mode-btn" id="mode-proportion" onclick="setMode('proportion')">Use proportion (p)</button>
-            <button class="mode-btn" id="mode-sweep" onclick="setMode('sweep')">Sweep range</button>
+            <button class="pill-btn active" id="mode-successes" onclick="setMode('successes')">Use successes (x)</button>
+            <button class="pill-btn" id="mode-proportion" onclick="setMode('proportion')">Use proportion (p)</button>
+            <button class="pill-btn" id="mode-sweep" onclick="setMode('sweep')">Sweep range</button>
           </div>
         </div>
         
@@ -513,9 +486,9 @@
             <label>Confidence level</label>
             <input type="text" id="input-conf" value="0.95" inputmode="decimal" placeholder="e.g., 0.95" oninput="calculate()">
             <div class="preset-buttons">
-              <button class="preset-btn" onclick="setConf(0.9)">90%</button>
-              <button class="preset-btn" onclick="setConf(0.95)">95%</button>
-              <button class="preset-btn" onclick="setConf(0.99)">99%</button>
+              <button class="pill-btn" onclick="setConf(0.9)">90%</button>
+              <button class="pill-btn" onclick="setConf(0.95)">95%</button>
+              <button class="pill-btn" onclick="setConf(0.99)">99%</button>
             </div>
             <p class="hint">Enter as a decimal between 0 and 1 (0.95 = 95%).</p>
           </div>
@@ -731,20 +704,18 @@
       return x.toFixed(dp);
     }
 
-    function finitePopulationCorrection(n, N) {
-      if (!Number.isFinite(n) || !Number.isFinite(N)) return NaN;
-      if (N <= 1) return NaN;
-      if (n < 0) return NaN;
-      if (n > N) return NaN;
-      return Math.sqrt((N - n) / (N - 1));
+    function isValidFinitePopParams(n, N) {
+      return Number.isFinite(n) && Number.isFinite(N) && N > 1 && n >= 0 && n <= N;
     }
 
     function finitePopulationFactor(n, N) {
-      if (!Number.isFinite(n) || !Number.isFinite(N)) return NaN;
-      if (N <= 1) return NaN;
-      if (n < 0) return NaN;
-      if (n > N) return NaN;
+      if (!isValidFinitePopParams(n, N)) return NaN;
       return (N - n) / (N - 1);
+    }
+
+    function finitePopulationCorrection(n, N) {
+      const factor = finitePopulationFactor(n, N);
+      return Number.isFinite(factor) ? Math.sqrt(factor) : NaN;
     }
 
     function bisectRoot(fn, lo, hi, maxIter = 80, tol = 1e-12) {
@@ -836,31 +807,47 @@
       return { lo, hi };
     }
 
-    function calculateCIForX(xVal, n, N, z, method, useFpc, fpc) {
-      const p = xVal / n;
+    // Method labels used for display
+    const METHOD_LABELS = {
+      wilson: 'Wilson score',
+      hypergeo: 'Hypergeometric score (finite-pop Wilson)',
+      agresti: 'Agresti-Coull',
+      wald: 'Wald (normal approx)'
+    };
+
+    // Calculate CI for a given method
+    function calculateCI(method, x, n, N, z, fpc) {
+      const p = x / n;
       const z2 = z * z;
 
-      if (method === 'wilson') {
-        const denom = 1 + z2 / n;
-        const center = (p + z2 / (2 * n)) / denom;
-        const half = (z * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n))) / denom;
-        return { lo: clamp01(center - half), hi: clamp01(center + half) };
-      } else if (method === 'hypergeo') {
-        const hg = hypergeoScoreCI(xVal, n, N, z);
-        return { lo: clamp01(hg.lo), hi: clamp01(hg.hi) };
-      } else if (method === 'agresti') {
-        const nTilde = n + z2;
-        const pTilde = (xVal + z2 / 2) / nTilde;
-        const seAC = Math.sqrt((pTilde * (1 - pTilde)) / nTilde);
-        return { lo: clamp01(pTilde - z * seAC), hi: clamp01(pTilde + z * seAC) };
-      } else {
-        // Wald
-        const waldSe = Math.sqrt((p * (1 - p)) / n) * fpc;
-        return { lo: clamp01(p - z * waldSe), hi: clamp01(p + z * waldSe) };
+      switch (method) {
+        case 'wilson': {
+          const denom = 1 + z2 / n;
+          const center = (p + z2 / (2 * n)) / denom;
+          const half = (z * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n))) / denom;
+          const se = Math.sqrt((p * (1 - p)) / n);
+          return { lo: clamp01(center - half), hi: clamp01(center + half), se, pEst: p };
+        }
+        case 'hypergeo': {
+          const hg = hypergeoScoreCI(x, n, N, z);
+          const fVar = finitePopulationFactor(n, N);
+          const se = Math.sqrt((p * (1 - p)) / n * fVar);
+          return { lo: clamp01(hg.lo), hi: clamp01(hg.hi), se, pEst: p };
+        }
+        case 'agresti': {
+          const nTilde = n + z2;
+          const pTilde = (x + z2 / 2) / nTilde;
+          const se = Math.sqrt((pTilde * (1 - pTilde)) / nTilde);
+          return { lo: clamp01(pTilde - z * se), hi: clamp01(pTilde + z * se), se, pEst: pTilde };
+        }
+        default: { // wald
+          const se = Math.sqrt((p * (1 - p)) / n) * fpc;
+          return { lo: clamp01(p - z * se), hi: clamp01(p + z * se), se, pEst: p };
+        }
       }
     }
 
-    function renderSweepChart(canvasId, n, N, z, method, useFpc, fpc, titleSuffix) {
+    function renderSweepChart(canvasId, n, N, z, method, fpc, titleSuffix) {
       const labels = [];
       const lowerBounds = [];
       const upperBounds = [];
@@ -869,7 +856,7 @@
       // Calculate for each x from 0 to n
       for (let xVal = 0; xVal <= n; xVal++) {
         labels.push(xVal);
-        const ci = calculateCIForX(xVal, n, N, z, method, useFpc, fpc);
+        const ci = calculateCI(method, xVal, n, N, z, fpc);
         lowerBounds.push(ci.lo * n);
         upperBounds.push(ci.hi * n);
         proportions.push(xVal);
@@ -882,16 +869,11 @@
         sweepCharts[canvasId].destroy();
       }
 
-      const methodLabels = {
-        'wilson': 'Wilson score',
-        'hypergeo': 'Hypergeometric score',
-        'agresti': 'Agresti–Coull',
-        'wald': 'Wald'
-      };
-
+      const shortLabels = { wilson: 'Wilson score', hypergeo: 'Hypergeometric score', agresti: 'Agresti-Coull', wald: 'Wald' };
+      const methodLabel = shortLabels[method] || method;
       const title = titleSuffix
-        ? `${methodLabels[method] || method} CI bounds (n = ${n}, ${titleSuffix})`
-        : `${methodLabels[method] || method} CI bounds (n = ${n})`;
+        ? `${methodLabel} CI bounds (n = ${n}, ${titleSuffix})`
+        : `${methodLabel} CI bounds (n = ${n})`;
 
       sweepCharts[canvasId] = new Chart(ctx, {
         type: 'line',
@@ -1019,43 +1001,42 @@
       });
     }
 
+    // Get tab configurations for sweep mode based on method
+    function getSweepTabConfigs(n, method) {
+      const nMultiples = [
+        { label: 'N = n', mult: 1 },
+        { label: 'N = 4n', mult: 4 },
+        { label: 'N = 100n', mult: 100 }
+      ];
+
+      if (method === 'wald') {
+        return [
+          { label: 'No FPC', N: null, useFpc: false },
+          ...nMultiples.map(m => ({ label: m.label, N: m.mult * n, useFpc: true }))
+        ];
+      }
+      if (method === 'hypergeo') {
+        return nMultiples.map(m => ({ label: m.label, N: m.mult * n, useFpc: true }));
+      }
+      // Wilson and Agresti-Coull: single chart, no tabs
+      return [{ label: null, N: null, useFpc: false }];
+    }
+
     function renderSweepTabs(n, z, method) {
       destroyAllSweepCharts();
 
       const tabsContainer = document.getElementById('sweep-tabs');
       const panelsContainer = document.getElementById('sweep-panels');
+      const tabConfigs = getSweepTabConfigs(n, method);
 
-      // Define tab configurations based on method
-      let tabConfigs = [];
-
-      if (method === 'wald') {
-        tabConfigs = [
-          { label: 'No FPC', N: null, useFpc: false },
-          { label: 'N = n', N: n, useFpc: true },
-          { label: 'N = 4n', N: 4 * n, useFpc: true },
-          { label: 'N = 100n', N: 100 * n, useFpc: true }
-        ];
-      } else if (method === 'hypergeo') {
-        tabConfigs = [
-          { label: 'N = n', N: n },
-          { label: 'N = 4n', N: 4 * n },
-          { label: 'N = 100n', N: 100 * n }
-        ];
-      } else {
-        // Wilson and Agresti-Coull: single chart, no tabs needed
-        tabConfigs = [{ label: null, N: null, useFpc: false }];
-      }
-
-      // Build tabs HTML
-      if (tabConfigs.length > 1) {
-        tabsContainer.innerHTML = tabConfigs.map((config, i) =>
-          `<button class="sweep-tab${i === 0 ? ' active' : ''}" onclick="switchSweepTab(${i})">${config.label}</button>`
-        ).join('');
-        tabsContainer.style.display = 'flex';
-      } else {
-        tabsContainer.innerHTML = '';
-        tabsContainer.style.display = 'none';
-      }
+      // Build tabs HTML (only show if multiple tabs)
+      const showTabs = tabConfigs.length > 1;
+      tabsContainer.style.display = showTabs ? 'flex' : 'none';
+      tabsContainer.innerHTML = showTabs
+        ? tabConfigs.map((config, i) =>
+            `<button class="pill-btn sweep-tab${i === 0 ? ' active' : ''}" onclick="switchSweepTab(${i})">${config.label}</button>`
+          ).join('')
+        : '';
 
       // Build panels HTML
       panelsContainer.innerHTML = tabConfigs.map((config, i) =>
@@ -1070,19 +1051,9 @@
       tabConfigs.forEach((config, i) => {
         const effectiveN = config.N || n;
         const fpc = config.useFpc ? finitePopulationCorrection(n, effectiveN) : 1;
-        let titleSuffix = '';
+        const titleSuffix = config.useFpc ? `N = ${effectiveN}` : (method === 'wald' ? 'no FPC' : '');
 
-        if (method === 'wald') {
-          if (config.useFpc) {
-            titleSuffix = `N = ${effectiveN}`;
-          } else {
-            titleSuffix = 'no FPC';
-          }
-        } else if (method === 'hypergeo') {
-          titleSuffix = `N = ${effectiveN}`;
-        }
-
-        renderSweepChart(`sweep-chart-${i}`, n, effectiveN, z, method, config.useFpc, fpc, titleSuffix);
+        renderSweepChart(`sweep-chart-${i}`, n, effectiveN, z, method, fpc, titleSuffix);
       });
 
       activeTabIndex = 0;
@@ -1189,52 +1160,19 @@
       sweepResultsEl.style.display = 'none';
       resultsEl.style.display = 'grid';
 
-      // Calculate all intervals
-      const z2 = z * z;
+      // Calculate all intervals using centralized function
+      const allMethods = ['wilson', 'hypergeo', 'agresti', 'wald'];
+      const results = {};
+      allMethods.forEach(m => {
+        const methodFpc = (m === 'wald' && useFpc) ? fpc : 1;
+        results[m] = calculateCI(m, x, n, N, z, methodFpc);
+      });
 
-      // Wald
-      const waldSe = Math.sqrt((p * (1 - p)) / n) * fpc;
-      const waldLo = clamp01(p - z * waldSe);
-      const waldHi = clamp01(p + z * waldSe);
-
-      // Wilson
-      const denom = 1 + z2 / n;
-      const center = (p + z2 / (2 * n)) / denom;
-      const half = (z * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n))) / denom;
-      const wilsonLo = clamp01(center - half);
-      const wilsonHi = clamp01(center + half);
-      const wilsonSe = Math.sqrt((p * (1 - p)) / n);
-
-      // Hypergeometric
-      const hg = hypergeoScoreCI(x, n, N, z);
-      const hypergeoLo = clamp01(hg.lo);
-      const hypergeoHi = clamp01(hg.hi);
-      const fVar = finitePopulationFactor(n, N);
-      const hypergeoSe = Math.sqrt((p * (1 - p)) / n * fVar);
-
-      // Agresti-Coull
-      const nTilde = n + z2;
-      const pTilde = (x + z2 / 2) / nTilde;
-      const seAC = Math.sqrt((pTilde * (1 - pTilde)) / nTilde);
-      const agrestiLo = clamp01(pTilde - z * seAC);
-      const agrestiHi = clamp01(pTilde + z * seAC);
-
-      // Selected method
-      let chosen;
-      if (method === 'wilson') {
-        chosen = { lo: wilsonLo, hi: wilsonHi, label: 'Wilson score', se: wilsonSe, pEst: p };
-      } else if (method === 'hypergeo') {
-        chosen = { lo: hypergeoLo, hi: hypergeoHi, label: 'Hypergeometric score (finite-pop Wilson)', se: hypergeoSe, pEst: p };
-      } else if (method === 'agresti') {
-        chosen = { lo: agrestiLo, hi: agrestiHi, label: 'Agresti–Coull', se: seAC, pEst: pTilde };
-      } else {
-        chosen = { lo: waldLo, hi: waldHi, label: 'Wald (normal approx)', se: waldSe, pEst: p };
-      }
-
+      const chosen = results[method];
       const rse = chosen.pEst > 0 ? chosen.se / chosen.pEst : NaN;
 
-      // Update display
-      document.getElementById('chosen-method').textContent = chosen.label;
+      // Update main result display
+      document.getElementById('chosen-method').textContent = METHOD_LABELS[method];
       document.getElementById('chosen-lo-count').textContent = fmtCount(chosen.lo * n, 0);
       document.getElementById('chosen-lo-pct').textContent = fmtPct(chosen.lo);
       document.getElementById('chosen-hi-count').textContent = fmtCount(chosen.hi * n, 0);
@@ -1242,41 +1180,29 @@
       document.getElementById('chosen-width').textContent = fmtPct(chosen.hi - chosen.lo);
       document.getElementById('chosen-rse').textContent = fmtPct(rse);
 
+      // Update details section
       document.getElementById('detail-n').textContent = n;
       document.getElementById('detail-x').textContent = fmtCount(x, 0);
       document.getElementById('detail-z').textContent = fmtNum(z, 6);
 
-      let modelText;
-      if (method === 'hypergeo') {
-        modelText = 'Finite-pop (Hypergeometric score)';
-      } else if (useFpc) {
-        modelText = 'Finite-pop (Wald+FPC)';
-      } else {
-        modelText = 'Binomial (default)';
-      }
+      const modelText = method === 'hypergeo' ? 'Finite-pop (Hypergeometric score)'
+        : useFpc ? 'Finite-pop (Wald+FPC)'
+        : 'Binomial (default)';
       document.getElementById('detail-model').textContent = modelText;
 
       if (needsN) {
-        const factor = method === 'hypergeo' ? finitePopulationFactor(n, N) : (useFpc ? fpc : 1);
+        const factor = method === 'hypergeo' ? finitePopulationFactor(n, N) : fpc;
         document.getElementById('detail-note').textContent = `N = ${N} · factor = ${fmtNum(factor, 6)}`;
       } else {
         document.getElementById('detail-note').textContent = 'Population size not used';
       }
 
-      // Update method rows
-      const methods = ['wilson', 'hypergeo', 'agresti', 'wald'];
-      const results = {
-        wilson: { lo: wilsonLo, hi: wilsonHi },
-        hypergeo: { lo: hypergeoLo, hi: hypergeoHi },
-        agresti: { lo: agrestiLo, hi: agrestiHi },
-        wald: { lo: waldLo, hi: waldHi }
-      };
-
-      methods.forEach(m => {
+      // Update method comparison rows
+      allMethods.forEach(m => {
         const row = document.getElementById('row-' + m);
         const val = document.getElementById('val-' + m);
-        row.classList.toggle('active', m === method);
         const r = results[m];
+        row.classList.toggle('active', m === method);
         val.textContent = `${fmtCount(r.lo * n, 0)} → ${fmtCount(r.hi * n, 0)} · ${fmtPct(r.lo)} → ${fmtPct(r.hi)}`;
       });
     }
