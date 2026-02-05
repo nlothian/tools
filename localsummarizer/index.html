@@ -109,19 +109,50 @@
         <!-- Input Section -->
         <section class="bg-base-2 border border-base-1/20 rounded p-6
                         shadow-[0_2px_8px_rgba(101,123,131,0.08)]">
-          <div class="flex justify-between items-center mb-4">
-            <h2 class="text-lg font-semibold">Input Transcript</h2>
+          <!-- Tabs -->
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex gap-1">
+              <button id="tab-transcript" class="px-4 py-1.5 text-sm font-semibold rounded
+                             bg-base-3 text-base-00 border border-base-1/20
+                             transition-all duration-150">
+                Transcript
+              </button>
+              <button id="tab-prompt" class="px-4 py-1.5 text-sm font-semibold rounded
+                             bg-transparent text-base-1 border border-transparent
+                             transition-all duration-150
+                             hover:text-base-00">
+                Prompt
+              </button>
+            </div>
             <span id="token-count" class="text-xs text-base-1">0 / 20,000 tokens</span>
           </div>
 
-          <textarea
-            id="transcript-input"
-            placeholder="Paste your transcript here, or upload a file..."
-            class="w-full h-64 px-4 py-3 bg-base-3 border border-base-1/20 rounded
-                   text-[13px] text-base-00 font-mono resize-y
-                   transition-all duration-200
-                   focus:outline-none focus:border-sol-cyan focus:ring-[3px] focus:ring-sol-cyan/20"
-          ></textarea>
+          <!-- Transcript Tab Content -->
+          <div id="tab-content-transcript">
+            <textarea
+              id="transcript-input"
+              placeholder="Paste your transcript here, or upload a file..."
+              class="w-full h-64 px-4 py-3 bg-base-3 border border-base-1/20 rounded
+                     text-[13px] text-base-00 font-mono resize-y
+                     transition-all duration-200
+                     focus:outline-none focus:border-sol-cyan focus:ring-[3px] focus:ring-sol-cyan/20"
+            ></textarea>
+          </div>
+
+          <!-- Prompt Tab Content -->
+          <div id="tab-content-prompt" class="hidden">
+            <div class="flex justify-between items-center mb-2">
+              <p class="text-xs text-base-1">Edit the prompt template. Use <code class="text-sol-cyan">{transcript}</code> as the placeholder for the transcript text.</p>
+              <button id="reset-prompt-btn" class="text-xs text-sol-cyan hover:underline">Reset to Default</button>
+            </div>
+            <textarea
+              id="prompt-input"
+              class="w-full h-64 px-4 py-3 bg-base-3 border border-base-1/20 rounded
+                     text-[13px] text-base-00 font-mono resize-y
+                     transition-all duration-200
+                     focus:outline-none focus:border-sol-cyan focus:ring-[3px] focus:ring-sol-cyan/20"
+            ></textarea>
+          </div>
 
           <div class="flex flex-wrap items-center justify-between gap-3 mt-4">
             <div class="flex flex-wrap gap-3">

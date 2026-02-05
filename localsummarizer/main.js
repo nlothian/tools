@@ -93,6 +93,13 @@ const elements = {
   thinkingOutput: document.getElementById('thinking-output'),
   // WebGPU toggle
   webgpuToggle: document.getElementById('webgpu-toggle'),
+  // Tabs
+  tabTranscript: document.getElementById('tab-transcript'),
+  tabPrompt: document.getElementById('tab-prompt'),
+  tabContentTranscript: document.getElementById('tab-content-transcript'),
+  tabContentPrompt: document.getElementById('tab-content-prompt'),
+  promptInput: document.getElementById('prompt-input'),
+  resetPromptBtn: document.getElementById('reset-prompt-btn'),
 };
 
 // =========================================================================
@@ -172,16 +179,24 @@ function updateTokenCount() {
 // =========================================================================
 // Prompt Builder
 // =========================================================================
-function buildPrompt(text) {
-  // Note: token validation happens before this function is called
-  return `Summarize the following transcript into a comprehensive summary of the conversation. It should be divided into a number of high level topics, with important points as bullet points under each one.
+const DEFAULT_PROMPT_TEMPLATE = `Summarize the following transcript into a comprehensive summary of the conversation. It should be divided into a number of high level topics, with important points as bullet points under each one.
 
 Carefully look for tasks to be completed and be sure to summarize them into a "Next Steps" section
 
 Transcript:
 ---
-${text}
+{transcript}
 ---`;
+
+function getPromptTemplate() {
+  return elements.promptInput.value || DEFAULT_PROMPT_TEMPLATE;
+}
+
+function buildPrompt(text) {
+  // Note: token validation happens before this function is called
+  const template = getPromptTemplate();
+  // Use split/join instead of replace to avoid $ special replacement patterns in transcript text
+  return template.split('{transcript}').join(text);
 }
 
 function countTopicsInOutput(text) {
@@ -534,6 +549,36 @@ elements.loadModelBtn.addEventListener('click', loadModel);
 elements.summarizeBtn.addEventListener('click', processPipeline);
 elements.stopBtn.addEventListener('click', stopProcessing);
 elements.thinkingToggle.addEventListener('click', toggleThinking);
+
+// Tab switching
+function switchTab(tab) {
+  const isTranscript = tab === 'transcript';
+  elements.tabContentTranscript.classList.toggle('hidden', !isTranscript);
+  elements.tabContentPrompt.classList.toggle('hidden', isTranscript);
+
+  // Active tab styling
+  elements.tabTranscript.className = isTranscript
+    ? 'px-4 py-1.5 text-sm font-semibold rounded bg-base-3 text-base-00 border border-base-1/20 transition-all duration-150'
+    : 'px-4 py-1.5 text-sm font-semibold rounded bg-transparent text-base-1 border border-transparent transition-all duration-150 hover:text-base-00';
+  elements.tabPrompt.className = !isTranscript
+    ? 'px-4 py-1.5 text-sm font-semibold rounded bg-base-3 text-base-00 border border-base-1/20 transition-all duration-150'
+    : 'px-4 py-1.5 text-sm font-semibold rounded bg-transparent text-base-1 border border-transparent transition-all duration-150 hover:text-base-00';
+}
+
+elements.tabTranscript.addEventListener('click', () => switchTab('transcript'));
+elements.tabPrompt.addEventListener('click', () => switchTab('prompt'));
+
+// Prompt editing - persist to localStorage
+elements.promptInput.value = localStorage.getItem('promptTemplate') || DEFAULT_PROMPT_TEMPLATE;
+
+elements.promptInput.addEventListener('input', () => {
+  localStorage.setItem('promptTemplate', elements.promptInput.value);
+});
+
+elements.resetPromptBtn.addEventListener('click', () => {
+  elements.promptInput.value = DEFAULT_PROMPT_TEMPLATE;
+  localStorage.removeItem('promptTemplate');
+});
 
 // WebGPU toggle - requires page reload to take effect after model is loaded
 elements.webgpuToggle.addEventListener('change', (e) => {

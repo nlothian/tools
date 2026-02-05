@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Proportion Confidence Interval Calculator</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     * {
       box-sizing: border-box;
@@ -52,7 +53,7 @@
     }
     
     @media (min-width: 768px) {
-      .grid { grid-template-columns: 1fr 1fr; }
+      .grid { grid-template-columns: 1fr 1fr; align-items: start; }
     }
     
     .card {
@@ -115,7 +116,7 @@
       margin-bottom: 0.5rem;
     }
     
-    .field input, .field select {
+    .field input, .field select, .fpc-field input {
       width: 100%;
       border-radius: 0.75rem;
       border: 1px solid #e2e8f0;
@@ -124,12 +125,12 @@
       outline: none;
       transition: box-shadow 0.15s;
     }
-    
-    .field input:focus, .field select:focus {
+
+    .field input:focus, .field select:focus, .fpc-field input:focus {
       box-shadow: 0 0 0 2px #cbd5e1;
     }
-    
-    .field input:disabled {
+
+    .field input:disabled, .fpc-field input:disabled {
       cursor: not-allowed;
       opacity: 0.5;
     }
@@ -164,7 +165,11 @@
     .fpc-box {
       border-radius: 1rem;
       border: 1px solid #e2e8f0;
+      background: #f8fafc;
       padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
     }
     
     .fpc-header {
@@ -195,10 +200,6 @@
     .checkbox-label input {
       width: 1rem;
       height: 1rem;
-    }
-    
-    .fpc-field {
-      margin-top: 0.75rem;
     }
     
     .fpc-field.disabled {
@@ -410,6 +411,65 @@
       font-size: 0.75rem;
       color: #64748b;
     }
+
+    .sweep-results {
+      margin-top: 1rem;
+    }
+
+    .sweep-chart-container {
+      background: white;
+      border-radius: 1rem;
+      border: 1px solid #e2e8f0;
+      padding: 1rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      height: 500px;
+    }
+
+    .sweep-info {
+      margin-top: 0.75rem;
+      font-size: 0.875rem;
+      color: #475569;
+    }
+
+    .sweep-description {
+      margin: 0;
+    }
+
+    .sweep-tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .sweep-tab {
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      font-size: 0.875rem;
+      border: 1px solid #e2e8f0;
+      background: white;
+      color: #334155;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .sweep-tab:hover {
+      background: #f8fafc;
+    }
+
+    .sweep-tab.active {
+      background: #0f172a;
+      color: white;
+      border-color: #0f172a;
+    }
+
+    .sweep-tab-panel {
+      display: none;
+    }
+
+    .sweep-tab-panel.active {
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -427,6 +487,7 @@
           <div class="mode-buttons">
             <button class="mode-btn active" id="mode-successes" onclick="setMode('successes')">Use successes (x)</button>
             <button class="mode-btn" id="mode-proportion" onclick="setMode('proportion')">Use proportion (p)</button>
+            <button class="mode-btn" id="mode-sweep" onclick="setMode('sweep')">Sweep range</button>
           </div>
         </div>
         
@@ -462,8 +523,8 @@
           <div class="field">
             <label>Interval method</label>
             <select id="input-method" onchange="calculate()">
-              <option value="wilson">Wilson score (recommended)</option>
               <option value="hypergeo">Hypergeometric score (finite-pop Wilson)</option>
+              <option value="wilson">Wilson score</option>
               <option value="agresti">Agresti–Coull</option>
               <option value="wald">Wald (normal approximation)</option>
             </select>
@@ -471,6 +532,13 @@
           </div>
           
           <div class="fpc-box">
+
+            <div class="fpc-field" id="pop-field">
+              <label style="font-size: 0.875rem; font-weight: 500; display: block; margin-bottom: 0.5rem;">Population size (N)</label>
+              <input type="text" id="input-N" value="1000" inputmode="numeric" placeholder="e.g., 10000" oninput="calculate()">
+              <p class="hint">Required for Hypergeometric score, and for Wald+FPC when enabled.</p>
+            </div>
+
             <div class="fpc-header">
               <div>
                 <div class="fpc-title">Finite population correction</div>
@@ -481,12 +549,7 @@
                 Enable (Wald)
               </label>
             </div>
-            
-            <div class="fpc-field" id="pop-field">
-              <label style="font-size: 0.875rem; font-weight: 500; display: block; margin-bottom: 0.5rem;">Population size (N)</label>
-              <input type="text" id="input-N" value="1000" inputmode="numeric" placeholder="e.g., 10000" oninput="calculate()">
-              <p class="hint">Required for Hypergeometric score, and for Wald+FPC when enabled.</p>
-            </div>
+
           </div>
           
           <div class="warning" id="warning" style="display: none;">
@@ -503,6 +566,14 @@
           Enter inputs to see your confidence interval.
         </div>
         
+        <div id="sweep-results" class="sweep-results" style="display: none;">
+          <div id="sweep-tabs" class="sweep-tabs"></div>
+          <div id="sweep-panels"></div>
+          <div class="sweep-info">
+            <p class="sweep-description">Showing confidence interval bounds as successes (x) varies from 0 to n.</p>
+          </div>
+        </div>
+
         <div id="results" class="results" style="display: none;">
           <div class="result-main">
             <div class="label">Selected method</div>
@@ -594,6 +665,8 @@
   <script>
     // State
     let mode = 'successes';
+    let sweepCharts = {};
+    let activeTabIndex = 0;
 
     // Acklam's approximation for inverse normal CDF
     function normInv(p) {
@@ -763,12 +836,266 @@
       return { lo, hi };
     }
 
+    function calculateCIForX(xVal, n, N, z, method, useFpc, fpc) {
+      const p = xVal / n;
+      const z2 = z * z;
+
+      if (method === 'wilson') {
+        const denom = 1 + z2 / n;
+        const center = (p + z2 / (2 * n)) / denom;
+        const half = (z * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n))) / denom;
+        return { lo: clamp01(center - half), hi: clamp01(center + half) };
+      } else if (method === 'hypergeo') {
+        const hg = hypergeoScoreCI(xVal, n, N, z);
+        return { lo: clamp01(hg.lo), hi: clamp01(hg.hi) };
+      } else if (method === 'agresti') {
+        const nTilde = n + z2;
+        const pTilde = (xVal + z2 / 2) / nTilde;
+        const seAC = Math.sqrt((pTilde * (1 - pTilde)) / nTilde);
+        return { lo: clamp01(pTilde - z * seAC), hi: clamp01(pTilde + z * seAC) };
+      } else {
+        // Wald
+        const waldSe = Math.sqrt((p * (1 - p)) / n) * fpc;
+        return { lo: clamp01(p - z * waldSe), hi: clamp01(p + z * waldSe) };
+      }
+    }
+
+    function renderSweepChart(canvasId, n, N, z, method, useFpc, fpc, titleSuffix) {
+      const labels = [];
+      const lowerBounds = [];
+      const upperBounds = [];
+      const proportions = [];
+
+      // Calculate for each x from 0 to n
+      for (let xVal = 0; xVal <= n; xVal++) {
+        labels.push(xVal);
+        const ci = calculateCIForX(xVal, n, N, z, method, useFpc, fpc);
+        lowerBounds.push(ci.lo * n);
+        upperBounds.push(ci.hi * n);
+        proportions.push(xVal);
+      }
+
+      const ctx = document.getElementById(canvasId).getContext('2d');
+
+      // Destroy existing chart if it exists
+      if (sweepCharts[canvasId]) {
+        sweepCharts[canvasId].destroy();
+      }
+
+      const methodLabels = {
+        'wilson': 'Wilson score',
+        'hypergeo': 'Hypergeometric score',
+        'agresti': 'Agresti–Coull',
+        'wald': 'Wald'
+      };
+
+      const title = titleSuffix
+        ? `${methodLabels[method] || method} CI bounds (n = ${n}, ${titleSuffix})`
+        : `${methodLabels[method] || method} CI bounds (n = ${n})`;
+
+      sweepCharts[canvasId] = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Upper bound',
+              data: upperBounds,
+              borderColor: '#fde725',
+              backgroundColor: 'rgba(253, 231, 37, 0.2)',
+              borderWidth: 2,
+              fill: '+1',
+              pointRadius: n <= 50 ? 2 : 0,
+              pointHoverRadius: 4,
+              tension: 0.1
+            },
+            {
+              label: 'Successes (x)',
+              data: proportions,
+              borderColor: '#21918c',
+              backgroundColor: 'rgba(68, 1, 84, 0.2)',
+              borderWidth: 2,
+              borderDash: [5, 5],
+              fill: '+1',
+              pointRadius: 0,
+              pointHoverRadius: 4,
+              tension: 0
+            },
+            {
+              label: 'Lower bound',
+              data: lowerBounds,
+              borderColor: '#440154',
+              backgroundColor: 'rgba(68, 1, 84, 0.15)',
+              borderWidth: 2,
+              fill: false,
+              pointRadius: n <= 50 ? 2 : 0,
+              pointHoverRadius: 4,
+              tension: 0.1
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          plugins: {
+            title: {
+              display: true,
+              text: title,
+              font: { size: 14, weight: '600' },
+              color: '#0f172a'
+            },
+            legend: {
+              position: 'bottom',
+              labels: {
+                usePointStyle: true,
+                padding: 16,
+                font: { size: 12 }
+              }
+            },
+            tooltip: {
+              callbacks: {
+                title: function(context) {
+                  return `x = ${context[0].label}`;
+                },
+                label: function(context) {
+                  return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Successes (x)',
+                font: { size: 12, weight: '500' },
+                color: '#475569'
+              },
+              grid: {
+                color: 'rgba(0, 0, 0, 0.05)'
+              },
+              ticks: {
+                maxTicksLimit: 10
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Count',
+                font: { size: 12, weight: '500' },
+                color: '#475569'
+              },
+              min: 0,
+              max: n,
+              grid: {
+                color: 'rgba(0, 0, 0, 0.05)'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function destroyAllSweepCharts() {
+      Object.keys(sweepCharts).forEach(key => {
+        if (sweepCharts[key]) {
+          sweepCharts[key].destroy();
+        }
+      });
+      sweepCharts = {};
+    }
+
+    function switchSweepTab(index) {
+      activeTabIndex = index;
+      document.querySelectorAll('.sweep-tab').forEach((tab, i) => {
+        tab.classList.toggle('active', i === index);
+      });
+      document.querySelectorAll('.sweep-tab-panel').forEach((panel, i) => {
+        panel.classList.toggle('active', i === index);
+      });
+    }
+
+    function renderSweepTabs(n, z, method) {
+      destroyAllSweepCharts();
+
+      const tabsContainer = document.getElementById('sweep-tabs');
+      const panelsContainer = document.getElementById('sweep-panels');
+
+      // Define tab configurations based on method
+      let tabConfigs = [];
+
+      if (method === 'wald') {
+        tabConfigs = [
+          { label: 'No FPC', N: null, useFpc: false },
+          { label: 'N = n', N: n, useFpc: true },
+          { label: 'N = 4n', N: 4 * n, useFpc: true },
+          { label: 'N = 100n', N: 100 * n, useFpc: true }
+        ];
+      } else if (method === 'hypergeo') {
+        tabConfigs = [
+          { label: 'N = n', N: n },
+          { label: 'N = 4n', N: 4 * n },
+          { label: 'N = 100n', N: 100 * n }
+        ];
+      } else {
+        // Wilson and Agresti-Coull: single chart, no tabs needed
+        tabConfigs = [{ label: null, N: null, useFpc: false }];
+      }
+
+      // Build tabs HTML
+      if (tabConfigs.length > 1) {
+        tabsContainer.innerHTML = tabConfigs.map((config, i) =>
+          `<button class="sweep-tab${i === 0 ? ' active' : ''}" onclick="switchSweepTab(${i})">${config.label}</button>`
+        ).join('');
+        tabsContainer.style.display = 'flex';
+      } else {
+        tabsContainer.innerHTML = '';
+        tabsContainer.style.display = 'none';
+      }
+
+      // Build panels HTML
+      panelsContainer.innerHTML = tabConfigs.map((config, i) =>
+        `<div class="sweep-tab-panel${i === 0 ? ' active' : ''}" id="sweep-panel-${i}">
+          <div class="sweep-chart-container">
+            <canvas id="sweep-chart-${i}"></canvas>
+          </div>
+        </div>`
+      ).join('');
+
+      // Render all charts
+      tabConfigs.forEach((config, i) => {
+        const effectiveN = config.N || n;
+        const fpc = config.useFpc ? finitePopulationCorrection(n, effectiveN) : 1;
+        let titleSuffix = '';
+
+        if (method === 'wald') {
+          if (config.useFpc) {
+            titleSuffix = `N = ${effectiveN}`;
+          } else {
+            titleSuffix = 'no FPC';
+          }
+        } else if (method === 'hypergeo') {
+          titleSuffix = `N = ${effectiveN}`;
+        }
+
+        renderSweepChart(`sweep-chart-${i}`, n, effectiveN, z, method, config.useFpc, fpc, titleSuffix);
+      });
+
+      activeTabIndex = 0;
+    }
+
     function setMode(newMode) {
       mode = newMode;
       document.getElementById('mode-successes').classList.toggle('active', mode === 'successes');
       document.getElementById('mode-proportion').classList.toggle('active', mode === 'proportion');
+      document.getElementById('mode-sweep').classList.toggle('active', mode === 'sweep');
       document.getElementById('successes-field').style.display = mode === 'successes' ? 'block' : 'none';
       document.getElementById('proportion-field').style.display = mode === 'proportion' ? 'block' : 'none';
+      document.querySelector('.fpc-box').style.display = mode === 'sweep' ? 'none' : 'flex';
       calculate();
     }
 
@@ -788,16 +1115,6 @@
       const conf = Number(confStr);
       const N = Number(NStr);
 
-      let x = null, p = null;
-
-      if (mode === 'successes') {
-        x = Number(document.getElementById('input-x').value);
-        if (Number.isFinite(x) && Number.isFinite(n) && n > 0) p = x / n;
-      } else {
-        p = Number(document.getElementById('input-p').value);
-        if (Number.isFinite(p) && Number.isFinite(n) && n > 0) x = p * n;
-      }
-
       const alpha = 1 - conf;
       const z = normInv(1 - alpha / 2);
 
@@ -809,6 +1126,48 @@
       document.getElementById('pop-field').classList.toggle('disabled', !showNInput);
       document.getElementById('input-N').disabled = !showNInput;
 
+      const warningEl = document.getElementById('warning');
+      const resultsEl = document.getElementById('results');
+      const placeholderEl = document.getElementById('results-placeholder');
+      const sweepResultsEl = document.getElementById('sweep-results');
+
+      // Handle sweep mode
+      if (mode === 'sweep') {
+        // For sweep mode, we only need n, conf, and z to be valid
+        // N values are computed based on the method
+        const sweepOk = Number.isFinite(n) && n > 0 && Number.isInteger(n) &&
+                        Number.isFinite(conf) && conf > 0 && conf < 1 &&
+                        Number.isFinite(z);
+
+        if (!sweepOk) {
+          warningEl.style.display = 'block';
+          warningEl.textContent = 'Please enter valid inputs: n > 0 (integer), confidence between 0 and 1.';
+          resultsEl.style.display = 'none';
+          sweepResultsEl.style.display = 'none';
+          placeholderEl.style.display = 'block';
+          return;
+        }
+
+        warningEl.style.display = 'none';
+        placeholderEl.style.display = 'none';
+        resultsEl.style.display = 'none';
+        sweepResultsEl.style.display = 'block';
+
+        renderSweepTabs(n, z, method);
+        return;
+      }
+
+      // Regular modes (successes or proportion)
+      let x = null, p = null;
+
+      if (mode === 'successes') {
+        x = Number(document.getElementById('input-x').value);
+        if (Number.isFinite(x) && Number.isFinite(n) && n > 0) p = x / n;
+      } else {
+        p = Number(document.getElementById('input-p').value);
+        if (Number.isFinite(p) && Number.isFinite(n) && n > 0) x = p * n;
+      }
+
       const ok = Number.isFinite(n) && n > 0 &&
                  Number.isFinite(conf) && conf > 0 && conf < 1 &&
                  p !== null && Number.isFinite(p) && p >= 0 && p <= 1 &&
@@ -816,20 +1175,18 @@
                  Number.isFinite(z) &&
                  (!needsN || (Number.isFinite(N) && N >= n && N > 1 && Number.isFinite(fpc)));
 
-      const warningEl = document.getElementById('warning');
-      const resultsEl = document.getElementById('results');
-      const placeholderEl = document.getElementById('results-placeholder');
-
       if (!ok) {
         warningEl.style.display = 'block';
         warningEl.textContent = `Please enter valid inputs: n > 0, confidence between 0 and 1, and p in [0,1] (or successes x between 0 and n).${needsN ? ' Also ensure N ≥ n and N > 1.' : ''}`;
         resultsEl.style.display = 'none';
+        sweepResultsEl.style.display = 'none';
         placeholderEl.style.display = 'block';
         return;
       }
 
       warningEl.style.display = 'none';
       placeholderEl.style.display = 'none';
+      sweepResultsEl.style.display = 'none';
       resultsEl.style.display = 'grid';
 
       // Calculate all intervals
