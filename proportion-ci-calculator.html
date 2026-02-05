@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Proportion Confidence Interval Calculator</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
   <style>
     * {
       box-sizing: border-box;
@@ -21,7 +22,7 @@
     }
     
     .container {
-      max-width: 56rem;
+      max-width: 72rem;
       margin: 0 auto;
       padding: 1.5rem;
     }
@@ -413,6 +414,17 @@
       height: 500px;
     }
 
+    .sweep-3d-chart-container {
+      background: white;
+      border-radius: 1rem;
+      border: 1px solid #e2e8f0;
+      padding: 1rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      height: 600px;
+      min-width: 0;
+      overflow: hidden;
+    }
+
     .sweep-info {
       margin-top: 0.75rem;
       font-size: 0.875rem;
@@ -458,14 +470,14 @@
         <div class="card-header">
           <h2>Inputs</h2>
           <div class="mode-buttons">
-            <button class="pill-btn active" id="mode-successes" onclick="setMode('successes')">Use successes (x)</button>
+            <button class="pill-btn" id="mode-successes" onclick="setMode('successes')">Use successes (x)</button>
             <button class="pill-btn" id="mode-proportion" onclick="setMode('proportion')">Use proportion (p)</button>
-            <button class="pill-btn" id="mode-sweep" onclick="setMode('sweep')">Sweep range</button>
+            <button class="pill-btn active" id="mode-sweep" onclick="setMode('sweep')">Sweep range</button>
           </div>
         </div>
-        
+
         <div class="inputs">
-          <div class="field" id="successes-field">
+          <div class="field" id="successes-field" style="display: none;">
             <label>Successes (x)</label>
             <input type="text" id="input-x" value="50" inputmode="decimal" placeholder="e.g., 50" oninput="calculate()">
             <p class="hint">Number of "successes" / positive observations in your sample.</p>
@@ -504,7 +516,7 @@
             <p class="hint">Hypergeometric score is a finite-population Wilson analogue that uses N.</p>
           </div>
           
-          <div class="fpc-box">
+          <div class="fpc-box" style="display: none;">
 
             <div class="fpc-field" id="pop-field">
               <label style="font-size: 0.875rem; font-weight: 500; display: block; margin-bottom: 0.5rem;">Population size (N)</label>
@@ -637,7 +649,7 @@
 
   <script>
     // State
-    let mode = 'successes';
+    let mode = 'sweep';
     let sweepCharts = {};
     let activeTabIndex = 0;
 
@@ -982,6 +994,111 @@
       });
     }
 
+    function render3DSweepChart(containerId, n, z, method) {
+      const container = document.getElementById(containerId);
+
+      // Generate data grid: x from 0 to n, N from n to 10n
+      const xValues = [];
+      const nValues = [];
+      const lowerSurface = [];
+      const upperSurface = [];
+
+      const xSteps = Math.min(n + 1, 51);  // Cap at 51 points for performance
+      const nSteps = 20;  // 20 steps from n to 10n
+
+      for (let i = 0; i < xSteps; i++) {
+        const xVal = Math.round((i / (xSteps - 1)) * n);
+        xValues.push(xVal);
+      }
+
+      for (let j = 0; j < nSteps; j++) {
+        const nVal = Math.round(n + (j / (nSteps - 1)) * 9 * n);
+        nValues.push(nVal);
+      }
+
+      // Calculate CI for each (x, N) combination
+      for (let j = 0; j < nSteps; j++) {
+        const lowerRow = [];
+        const upperRow = [];
+        const N = nValues[j];
+        const fpc = finitePopulationCorrection(n, N);
+
+        for (let i = 0; i < xSteps; i++) {
+          const x = xValues[i];
+          const ci = calculateCI(method, x, n, N, z, fpc);
+          lowerRow.push(ci.lo * n);
+          upperRow.push(ci.hi * n);
+        }
+        lowerSurface.push(lowerRow);
+        upperSurface.push(upperRow);
+      }
+
+      // Create point estimate surface (the actual x values, constant across N)
+      const pointEstimateSurface = [];
+      for (let j = 0; j < nSteps; j++) {
+        pointEstimateSurface.push([...xValues]);
+      }
+
+      const data = [
+        {
+          type: 'surface',
+          x: xValues,
+          y: nValues,
+          z: upperSurface,
+          name: 'Upper bound',
+          colorscale: [[0, '#fde725'], [1, '#fde725']],
+          showscale: false,
+          opacity: 0.7,
+          contours: {
+            z: { show: true, usecolormap: false, highlightcolor: '#b8860b', width: 1 }
+          }
+        },
+        {
+          type: 'surface',
+          x: xValues,
+          y: nValues,
+          z: pointEstimateSurface,
+          name: 'Point estimate (x)',
+          colorscale: [[0, '#21918c'], [1, '#21918c']],
+          showscale: false,
+          opacity: 0.5
+        },
+        {
+          type: 'surface',
+          x: xValues,
+          y: nValues,
+          z: lowerSurface,
+          name: 'Lower bound',
+          colorscale: [[0, '#a78bfa'], [1, '#a78bfa']],
+          showscale: false,
+          opacity: 0.7,
+          contours: {
+            z: { show: true, usecolormap: false, highlightcolor: '#7c3aed', width: 1 }
+          }
+        }
+      ];
+
+      const shortLabels = { wald: 'Wald', hypergeo: 'Hypergeometric score' };
+      const layout = {
+        title: {
+          text: `${shortLabels[method]} CI bounds (n = ${n}, N: ${n} → ${10*n})`,
+          font: { size: 14, family: '-apple-system, BlinkMacSystemFont, sans-serif' }
+        },
+        scene: {
+          xaxis: { title: 'Successes (x)' },
+          yaxis: { title: 'Population (N)' },
+          zaxis: { title: 'Count', range: [0, n] },
+          camera: { eye: { x: -1.5, y: -1.5, z: 1 } }
+        },
+        margin: { l: 10, r: 10, t: 50, b: 10 },
+        showlegend: true,
+        legend: { x: 0.01, y: 0.99, bgcolor: 'rgba(255,255,255,0.8)' },
+        autosize: true
+      };
+
+      Plotly.newPlot(container, data, layout, { responsive: true });
+    }
+
     function destroyAllSweepCharts() {
       Object.keys(sweepCharts).forEach(key => {
         if (sweepCharts[key]) {
@@ -989,6 +1106,11 @@
         }
       });
       sweepCharts = {};
+
+      // Clean up Plotly charts
+      document.querySelectorAll('.sweep-3d-chart-container').forEach(el => {
+        Plotly.purge(el);
+      });
     }
 
     function switchSweepTab(index) {
@@ -1011,15 +1133,19 @@
 
       if (method === 'wald') {
         return [
-          { label: 'No FPC', N: null, useFpc: false },
-          ...nMultiples.map(m => ({ label: m.label, N: m.mult * n, useFpc: true }))
+          { label: 'No FPC', N: null, useFpc: false, is3D: false },
+          ...nMultiples.map(m => ({ label: m.label, N: m.mult * n, useFpc: true, is3D: false })),
+          { label: '3D N-Sweep', is3D: true, useFpc: true }
         ];
       }
       if (method === 'hypergeo') {
-        return nMultiples.map(m => ({ label: m.label, N: m.mult * n, useFpc: true }));
+        return [
+          ...nMultiples.map(m => ({ label: m.label, N: m.mult * n, useFpc: true, is3D: false })),
+          { label: '3D N-Sweep', is3D: true, useFpc: true }
+        ];
       }
       // Wilson and Agresti-Coull: single chart, no tabs
-      return [{ label: null, N: null, useFpc: false }];
+      return [{ label: null, N: null, useFpc: false, is3D: false }];
     }
 
     function renderSweepTabs(n, z, method) {
@@ -1029,34 +1155,45 @@
       const panelsContainer = document.getElementById('sweep-panels');
       const tabConfigs = getSweepTabConfigs(n, method);
 
+      // Default to "N = n" tab if available, otherwise first tab
+      const nEqualsNIndex = tabConfigs.findIndex(config => config.label === 'N = n');
+      const activeIdx = nEqualsNIndex >= 0 ? nEqualsNIndex : 0;
+
       // Build tabs HTML (only show if multiple tabs)
       const showTabs = tabConfigs.length > 1;
       tabsContainer.style.display = showTabs ? 'flex' : 'none';
       tabsContainer.innerHTML = showTabs
         ? tabConfigs.map((config, i) =>
-            `<button class="pill-btn sweep-tab${i === 0 ? ' active' : ''}" onclick="switchSweepTab(${i})">${config.label}</button>`
+            `<button class="pill-btn sweep-tab${i === activeIdx ? ' active' : ''}" onclick="switchSweepTab(${i})">${config.label}</button>`
           ).join('')
         : '';
 
-      // Build panels HTML
+      // Build panels HTML (different container for 3D vs 2D charts)
       panelsContainer.innerHTML = tabConfigs.map((config, i) =>
-        `<div class="sweep-tab-panel${i === 0 ? ' active' : ''}" id="sweep-panel-${i}">
-          <div class="sweep-chart-container">
-            <canvas id="sweep-chart-${i}"></canvas>
-          </div>
-        </div>`
+        config.is3D
+          ? `<div class="sweep-tab-panel${i === activeIdx ? ' active' : ''}" id="sweep-panel-${i}">
+              <div class="sweep-3d-chart-container" id="sweep-3d-chart-${i}"></div>
+            </div>`
+          : `<div class="sweep-tab-panel${i === activeIdx ? ' active' : ''}" id="sweep-panel-${i}">
+              <div class="sweep-chart-container">
+                <canvas id="sweep-chart-${i}"></canvas>
+              </div>
+            </div>`
       ).join('');
 
       // Render all charts
       tabConfigs.forEach((config, i) => {
-        const effectiveN = config.N || n;
-        const fpc = config.useFpc ? finitePopulationCorrection(n, effectiveN) : 1;
-        const titleSuffix = config.useFpc ? `N = ${effectiveN}` : (method === 'wald' ? 'no FPC' : '');
-
-        renderSweepChart(`sweep-chart-${i}`, n, effectiveN, z, method, fpc, titleSuffix);
+        if (config.is3D) {
+          render3DSweepChart(`sweep-3d-chart-${i}`, n, z, method);
+        } else {
+          const effectiveN = config.N || n;
+          const fpc = config.useFpc ? finitePopulationCorrection(n, effectiveN) : 1;
+          const titleSuffix = config.useFpc ? `N = ${effectiveN}` : (method === 'wald' ? 'no FPC' : '');
+          renderSweepChart(`sweep-chart-${i}`, n, effectiveN, z, method, fpc, titleSuffix);
+        }
       });
 
-      activeTabIndex = 0;
+      activeTabIndex = activeIdx;
     }
 
     function setMode(newMode) {
