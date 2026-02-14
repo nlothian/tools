@@ -294,7 +294,8 @@
         <div id="llm-streaming-section" class="hidden">
           <div class="bg-base-2 border border-base-1/20 border-l-[3px] border-l-sol-cyan rounded p-4">
             <div class="flex justify-between items-center mb-2">
-              <span class="text-xs font-semibold uppercase tracking-wider">Generating SQL</span>
+              <span id="llm-streaming-label" class="text-xs font-semibold uppercase tracking-wider">Generating SQL</span>
+              <span id="llm-throbber" class="inline-block w-3 h-3 border-2 border-sol-cyan/30 border-t-sol-cyan rounded-full animate-spin"></span>
               <span id="llm-tps-display" class="text-[11px] text-base-1">-- tokens/sec</span>
             </div>
             <pre id="llm-streaming-output" class="text-[13px] text-base-00 whitespace-pre-wrap max-h-48 overflow-y-auto font-mono"></pre>
@@ -1080,6 +1081,7 @@ ORDER BY product;`
     const llmThinkingOutput = document.getElementById('llm-thinking-output');
     const llmStreamingSection = document.getElementById('llm-streaming-section');
     const llmStreamingOutput = document.getElementById('llm-streaming-output');
+    const llmStreamingLabel = document.getElementById('llm-streaming-label');
     const llmTpsDisplay = document.getElementById('llm-tps-display');
     // Tab elements
     const llmTabQuestion = document.getElementById('llm-tab-question');
@@ -1375,6 +1377,7 @@ User question: {question}`;
       llmStopBtn.classList.remove('hidden');
       llmStreamingSection.classList.remove('hidden');
       llmStreamingOutput.textContent = '';
+      llmStreamingLabel.textContent = 'Generating SQL';
       llmTpsDisplay.textContent = '-- tokens/sec';
 
       let prompt = buildSQLPrompt(question);
@@ -1414,6 +1417,7 @@ User question: {question}`;
           // Query errored — build error feedback for retry
           lastFeedback = `The previous SQL query:\n${lastSQL}\n\nReturned this error:\n${result.error}`;
           if (attempt < LLM_MAX_RETRIES) {
+            llmStreamingLabel.textContent = 'Correcting';
             llmStreamingOutput.textContent = `SQL error, retrying (${attempt + 1}/${LLM_MAX_RETRIES})...`;
             llmStreamingSection.classList.remove('hidden');
           }
@@ -1430,6 +1434,7 @@ User question: {question}`;
           llmThinkingContent = '';
           llmSummaryContent = '';
           llmIsInsideThinkBlock = false;
+          llmStreamingLabel.textContent = 'Checking Results';
           llmStreamingOutput.textContent = 'Verifying results...';
           llmStreamingSection.classList.remove('hidden');
           llmTpsDisplay.textContent = '-- tokens/sec';
@@ -1465,6 +1470,7 @@ User question: {question}`;
           // Corrected query also failed
           lastFeedback = `The corrected SQL query:\n${cleaned}\n\nReturned this error:\n${retryResult.error}`;
           if (attempt < LLM_MAX_RETRIES) {
+            llmStreamingLabel.textContent = 'Correcting';
             llmStreamingOutput.textContent = `SQL error, retrying (${attempt + 1}/${LLM_MAX_RETRIES})...`;
             llmStreamingSection.classList.remove('hidden');
           }
@@ -1479,6 +1485,7 @@ User question: {question}`;
 
     function llmResetGenerationUI() {
       isGenerating = false;
+      llmStreamingLabel.textContent = 'Generating SQL';
       llmGenerateBtn.classList.remove('hidden');
       llmStopBtn.classList.add('hidden');
       llmStreamingSection.classList.add('hidden');
