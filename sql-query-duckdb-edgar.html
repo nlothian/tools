@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DuckDB SQL — Browser Query Tool</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cousine:wght@400;700&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+  <style type="text/tailwindcss">
+    @theme {
+      --color-base-3: #fdf6e3;
+      --color-base-2: #eee8d5;
+      --color-base-1: #93a1a1;
+      --color-base-00: #657b83;
+      --color-base-01: #586e75;
+
+      --color-sol-cyan: #2aa198;
+      --color-sol-green: #859900;
+      --color-sol-yellow: #b58900;
+      --color-sol-orange: #cb4b16;
+      --color-sol-red: #dc322f;
+      --color-sol-magenta: #d33682;
+
+      --font-mono: 'Cousine', 'Monaco', 'Consolas', monospace;
+    }
+
+    @keyframes fade-in-down {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fade-in-up {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(42, 161, 152, 0.4); }
+      50% { box-shadow: 0 0 0 8px rgba(42, 161, 152, 0); }
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+  </style>
+
+  <style>
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--color-base-2); }
+    ::-webkit-scrollbar-thumb { background: var(--color-base-1); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--color-sol-cyan); }
+
+    .results-table { border-collapse: collapse; width: 100%; }
+    .results-table th {
+      background: var(--color-base-2);
+      color: var(--color-base-01);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 8px 12px;
+      text-align: left;
+      border-bottom: 2px solid rgba(147, 161, 161, 0.3);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .results-table td {
+      padding: 6px 12px;
+      border-bottom: 1px solid rgba(147, 161, 161, 0.12);
+      font-size: 13px;
+      color: var(--color-base-00);
+      max-width: 350px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .results-table tr:hover td {
+      background: rgba(42, 161, 152, 0.05);
+    }
+    .results-table td.null-val {
+      color: var(--color-base-1);
+      font-style: italic;
+    }
+
+    .sql-editor {
+      resize: vertical;
+      min-height: 140px;
+      tab-size: 2;
+    }
+    .sql-editor:focus {
+      outline: none;
+      border-color: var(--color-sol-cyan);
+      box-shadow: 0 0 0 3px rgba(42, 161, 152, 0.2);
+    }
+
+    .loading-overlay {
+      background: rgba(253, 246, 227, 0.97);
+      backdrop-filter: blur(4px);
+    }
+
+    .example-btn {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 6px 10px;
+      font-size: 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--color-base-00);
+      font-family: var(--font-mono);
+      transition: all 0.15s ease;
+    }
+    .example-btn:hover {
+      background: var(--color-base-3);
+      border-color: rgba(147, 161, 161, 0.2);
+      color: var(--color-sol-cyan);
+    }
+
+    .running-shimmer {
+      background: linear-gradient(90deg, var(--color-base-2) 0%, rgba(42, 161, 152, 0.12) 50%, var(--color-base-2) 100%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s ease-in-out infinite;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+
+<body class="font-mono bg-base-3 text-base-00 min-h-screen">
+  <!-- Fixed background gradient -->
+  <div class="fixed inset-0 -z-10"
+       style="background:
+         linear-gradient(135deg, #fdf6e3 0%, #eee8d5 100%),
+         radial-gradient(circle at 20% 80%, rgba(42,161,152,0.08) 0%, transparent 50%),
+         radial-gradient(circle at 80% 20%, rgba(42,161,152,0.05) 0%, transparent 50%);">
+  </div>
+
+  <!-- Loading overlay -->
+  <div id="loading-overlay" class="loading-overlay fixed inset-0 z-50 flex flex-col items-center justify-center">
+    <div class="text-center">
+      <div class="text-4xl mb-4 animate-[pulse-glow_2s_infinite]"
+           style="display: inline-block; padding: 16px; border-radius: 12px;">
+        &#x1F986;
+      </div>
+      <p class="text-base-01 text-sm mt-4" id="loading-message">Initializing DuckDB...</p>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header class="sticky top-0 z-40 px-6 lg:px-12 py-4 border-b border-base-1/20 bg-base-3/90 backdrop-blur-sm
+                 animate-[fade-in-down_0.4s_cubic-bezier(0.4,0,0.2,1)_backwards]">
+    <nav class="flex justify-between items-center max-w-[1400px] mx-auto">
+      <div class="flex items-center gap-3">
+        <span class="text-lg font-bold text-sol-cyan tracking-tight">DuckDB SQL</span>
+        <span class="text-xs text-base-1 border border-base-1/30 rounded px-2 py-0.5">WASM</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <div id="status-indicator" class="flex items-center gap-2 text-xs text-base-1">
+          <span id="status-dot" class="w-2 h-2 rounded-full bg-sol-yellow"></span>
+          <span id="status-text">Loading...</span>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+  <!-- Main content -->
+  <main class="max-w-[1400px] mx-auto px-6 lg:px-12 py-8
+               animate-[fade-in-up_0.6s_cubic-bezier(0.4,0,0.2,1)_backwards]">
+    <div class="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
+
+      <!-- Left: Editor + Results -->
+      <div class="space-y-6">
+
+        <!-- SQL Editor Card -->
+        <div class="bg-base-2 border border-base-1/20 rounded shadow-[0_2px_8px_rgba(101,123,131,0.08)]">
+          <div class="flex items-center justify-between px-4 py-2.5 border-b border-base-1/15">
+            <label class="text-xs text-base-1 uppercase tracking-wider">SQL Query</label>
+            <span class="text-[11px] text-base-1 hidden sm:inline">Ctrl+Enter to run</span>
+          </div>
+          <textarea id="sql-editor"
+                    class="sql-editor w-full px-4 py-3 bg-base-3 text-[13px] text-base-00 font-mono leading-relaxed tracking-tight border-0 border-b border-base-1/15"
+                    rows="10"
+                    spellcheck="false"
+                    placeholder="Enter SQL query...">SELECT 42 AS answer, 'Hello DuckDB!' AS greeting;</textarea>
+          <div class="flex items-center justify-between px-4 py-2.5">
+            <div id="query-info" class="text-[11px] text-base-1"></div>
+            <div class="flex gap-2">
+              <button id="clear-btn"
+                      class="bg-transparent text-base-00 border border-base-1/30 px-4 py-1.5 text-xs font-semibold rounded cursor-pointer
+                             transition-all duration-150
+                             hover:bg-base-3 hover:border-base-1/50">
+                Clear
+              </button>
+              <button id="run-btn"
+                      class="bg-sol-cyan text-base-3 px-5 py-1.5 text-xs font-semibold rounded cursor-pointer
+                             transition-all duration-150
+                             hover:shadow-[0_4px_12px_rgba(42,161,152,0.3)] hover:-translate-y-0.5
+                             active:scale-[0.98]
+                             disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none">
+                &#9654; Run Query
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Running indicator -->
+        <div id="running-bar" class="hidden h-1 rounded running-shimmer"></div>
+
+        <!-- Results Table -->
+        <div id="results-container" class="hidden">
+          <div class="bg-base-2 border border-base-1/20 rounded shadow-[0_2px_8px_rgba(101,123,131,0.08)] overflow-hidden">
+            <div class="flex items-center justify-between px-4 py-2.5 border-b border-base-1/15">
+              <label class="text-xs text-base-1 uppercase tracking-wider">Results</label>
+              <span id="result-stats" class="text-[11px] text-base-1"></span>
+            </div>
+            <div id="results-scroll" class="overflow-auto max-h-[500px] bg-base-3">
+              <table class="results-table" id="results-table">
+                <thead id="results-thead"></thead>
+                <tbody id="results-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Error display -->
+        <div id="error-container" class="hidden">
+          <div class="bg-base-2 border border-sol-red/30 border-l-[3px] border-l-sol-red rounded p-4">
+            <div class="flex items-start gap-3">
+              <span class="text-sol-red text-sm mt-0.5 shrink-0">&#x2717;</span>
+              <div class="min-w-0">
+                <p class="text-xs text-sol-red font-semibold uppercase tracking-wider mb-1">Query Error</p>
+                <pre id="error-message" class="text-[13px] text-base-00 whitespace-pre-wrap leading-relaxed break-words font-mono"></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Success message (DDL / DML) -->
+        <div id="success-container" class="hidden">
+          <div class="bg-base-2 border border-sol-green/30 border-l-[3px] border-l-sol-green rounded p-4">
+            <div class="flex items-start gap-3">
+              <span class="text-sol-green text-sm mt-0.5 shrink-0">&#x2713;</span>
+              <p id="success-message" class="text-[13px] text-base-00"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Examples & Info Sidebar -->
+      <aside class="space-y-4">
+        <div class="sticky top-[72px] space-y-4 max-h-[calc(100vh-90px)] overflow-y-auto pr-1">
+
+          <!-- Example Queries -->
+          <div class="bg-base-2 border border-base-1/20 border-l-[3px] border-l-sol-cyan rounded p-5">
+            <h4 class="text-sm font-semibold mb-3">Example Queries</h4>
+            <div class="space-y-1" id="examples-list"></div>
+          </div>
+
+          <!-- Tips -->
+          <div class="bg-base-2 border border-base-1/20 rounded p-5">
+            <h4 class="text-sm font-semibold mb-3">Tips</h4>
+            <ul class="space-y-2 text-[12px] text-base-01 leading-relaxed">
+              <li><strong class="text-base-00">Ctrl+Enter</strong> runs the query</li>
+              <li><strong class="text-base-00">Tab</strong> inserts two spaces</li>
+              <li>Query remote <strong class="text-base-00">Parquet</strong>, <strong class="text-base-00">CSV</strong>, and <strong class="text-base-00">JSON</strong> files by URL</li>
+              <li>Remote files must allow <strong class="text-base-00">CORS</strong></li>
+              <li>Display capped at <strong class="text-base-00">1,000 rows</strong></li>
+            </ul>
+          </div>
+
+          <!-- Schema Explorer -->
+          <div class="bg-base-2 border border-base-1/20 rounded p-5">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="text-sm font-semibold">Schema</h4>
+              <button id="refresh-schema-btn"
+                      class="text-[11px] text-sol-cyan hover:underline cursor-pointer bg-transparent border-0 font-mono p-0">
+                refresh
+              </button>
+            </div>
+            <div id="schema-info" class="text-[12px] text-base-01 leading-relaxed">
+              <p class="text-base-1 italic">No tables yet</p>
+            </div>
+          </div>
+
+          <!-- File Drop Zone -->
+          <div id="drop-zone"
+               class="bg-base-2 border-2 border-dashed border-base-1/30 rounded p-5 text-center
+                      transition-all duration-200 hover:border-sol-cyan/40">
+            <p class="text-[12px] text-base-1 leading-relaxed">
+              Drop a <strong class="text-base-00">CSV</strong> or <strong class="text-base-00">Parquet</strong> file here to load it as a table
+            </p>
+            <input type="file" id="file-input" accept=".csv,.parquet,.json,.tsv" class="hidden">
+            <button id="browse-btn"
+                    class="mt-2 text-[11px] text-sol-cyan hover:underline cursor-pointer bg-transparent border-0 font-mono p-0">
+              or browse files
+            </button>
+          </div>
+
+        </div>
+      </aside>
+
+    </div>
+  </main>
+
+  <script type="module">
+    import * as duckdb from 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm/+esm';
+
+    // =========================================================================
+    // State
+    // =========================================================================
+    let db = null;
+    let conn = null;
+    let isRunning = false;
+
+    // =========================================================================
+    // DOM references
+    // =========================================================================
+    const editor = document.getElementById('sql-editor');
+    const runBtn = document.getElementById('run-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    const runningBar = document.getElementById('running-bar');
+    const resultsContainer = document.getElementById('results-container');
+    const resultsThead = document.getElementById('results-thead');
+    const resultsTbody = document.getElementById('results-tbody');
+    const resultStats = document.getElementById('result-stats');
+    const errorContainer = document.getElementById('error-container');
+    const errorMessage = document.getElementById('error-message');
+    const successContainer = document.getElementById('success-container');
+    const successMessage = document.getElementById('success-message');
+    const queryInfo = document.getElementById('query-info');
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const loadingMsg = document.getElementById('loading-message');
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+    const examplesList = document.getElementById('examples-list');
+    const schemaInfo = document.getElementById('schema-info');
+    const refreshSchemaBtn = document.getElementById('refresh-schema-btn');
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const browseBtn = document.getElementById('browse-btn');
+
+    // =========================================================================
+    // Example queries
+    // =========================================================================
+    const examples = [
+      {
+        name: 'Hello DuckDB',
+        sql: `SELECT 42 AS answer, 'Hello DuckDB!' AS greeting;`
+      },
+      {
+        name: 'Generate Series',
+        sql: `SELECT *
+FROM generate_series(1, 20) AS t(n)
+WHERE n % 2 = 0;`
+      },
+      {
+        name: 'Inline Stocks',
+        sql: `SELECT * FROM (VALUES
+  ('AAPL',  'Apple Inc',       182.52),
+  ('MSFT',  'Microsoft',       378.91),
+  ('GOOGL', 'Alphabet',        141.80),
+  ('AMZN',  'Amazon',          178.25),
+  ('NVDA',  'NVIDIA',          875.28),
+  ('META',  'Meta Platforms',   484.10),
+  ('TSLA',  'Tesla Inc',       177.48)
+) AS stocks(ticker, company, price)
+ORDER BY price DESC;`
+      },
+      {
+        name: 'Window Functions',
+        sql: `WITH sales AS (
+  SELECT * FROM (VALUES
+    ('Q1', 'North', 150), ('Q1', 'South', 200),
+    ('Q2', 'North', 180), ('Q2', 'South', 220),
+    ('Q3', 'North', 210), ('Q3', 'South', 190),
+    ('Q4', 'North', 240), ('Q4', 'South', 260)
+  ) AS t(quarter, region, revenue)
+)
+SELECT
+  quarter, region, revenue,
+  SUM(revenue) OVER (
+    PARTITION BY region ORDER BY quarter
+  ) AS cumulative,
+  RANK() OVER (ORDER BY revenue DESC) AS rank
+FROM sales;`
+      },
+      {
+        name: 'Remote Parquet',
+        sql: `-- AWS CloudFront edge locations (from GitHub)
+SELECT
+  code, city, country,
+  ROUND(latitude, 3) AS lat,
+  ROUND(longitude, 3) AS lon
+FROM read_parquet(
+  'https://raw.githubusercontent.com/tobilg/aws-edge-locations/main/data/aws-edge-locations.parquet'
+)
+ORDER BY country, city
+LIMIT 50;`
+      },
+      {
+        name: 'Remote CSV',
+        sql: `-- Iris dataset from GitHub
+SELECT
+  species,
+  sepal_length,
+  sepal_width,
+  petal_length,
+  petal_width
+FROM read_csv(
+  'https://raw.githubusercontent.com/mwaskom/seaborn-data/master/iris.csv'
+)
+ORDER BY sepal_length DESC
+LIMIT 30;`
+      },
+      {
+        name: 'CSV Aggregation',
+        sql: `-- Iris species stats
+SELECT
+  species,
+  COUNT(*) AS n,
+  ROUND(AVG(sepal_length), 2) AS avg_sepal_l,
+  ROUND(AVG(petal_length), 2) AS avg_petal_l,
+  ROUND(STDDEV(sepal_width), 2) AS std_sepal_w
+FROM read_csv(
+  'https://raw.githubusercontent.com/mwaskom/seaborn-data/master/iris.csv'
+)
+GROUP BY species
+ORDER BY avg_sepal_l DESC;`
+      },
+      {
+        name: 'Pivot Table',
+        sql: `WITH data AS (
+  SELECT * FROM (VALUES
+    (2023, 'Q1', 'Product A', 1200),
+    (2023, 'Q2', 'Product A', 1500),
+    (2023, 'Q3', 'Product A', 1100),
+    (2023, 'Q4', 'Product A', 1800),
+    (2023, 'Q1', 'Product B', 800),
+    (2023, 'Q2', 'Product B', 950),
+    (2023, 'Q3', 'Product B', 1050),
+    (2023, 'Q4', 'Product B', 1200)
+  ) AS t(year, quarter, product, sales)
+)
+PIVOT data
+ON quarter
+USING SUM(sales)
+GROUP BY year, product
+ORDER BY product;`
+      },
+      {
+        name: 'System Info',
+        sql: `SELECT
+  version() AS duckdb_version,
+  current_date AS today,
+  current_timestamp AS now;`
+      }
+    ];
+
+    // =========================================================================
+    // Initialize DuckDB-WASM
+    // =========================================================================
+    async function initDuckDB() {
+      try {
+        loadingMsg.textContent = 'Fetching DuckDB bundles...';
+        const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
+        const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
+
+        loadingMsg.textContent = 'Starting worker...';
+        const workerUrl = URL.createObjectURL(
+          new Blob([`importScripts("${bundle.mainWorker}");`], { type: 'text/javascript' })
+        );
+
+        const worker = new Worker(workerUrl);
+        const logger = new duckdb.ConsoleLogger();
+        db = new duckdb.AsyncDuckDB(logger, worker);
+
+        loadingMsg.textContent = 'Instantiating database...';
+        await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+        URL.revokeObjectURL(workerUrl);
+
+        loadingMsg.textContent = 'Connecting...';
+        conn = await db.connect();
+
+        setStatus('ready', 'Ready');
+        loadingOverlay.style.transition = 'opacity 0.3s ease';
+        loadingOverlay.style.opacity = '0';
+        setTimeout(() => { loadingOverlay.style.display = 'none'; }, 300);
+
+        // Run initial example
+        await runQuery();
+
+      } catch (err) {
+        setStatus('error', 'Init failed');
+        loadingMsg.textContent = 'Error: ' + err.message;
+        loadingMsg.style.color = 'var(--color-sol-red)';
+        console.error('DuckDB init error:', err);
+      }
+    }
+
+    // =========================================================================
+    // Status indicator
+    // =========================================================================
+    function setStatus(state, text) {
+      statusText.textContent = text;
+      statusDot.className = 'w-2 h-2 rounded-full';
+      if (state === 'ready') statusDot.classList.add('bg-sol-green');
+      else if (state === 'running') statusDot.classList.add('bg-sol-yellow');
+      else if (state === 'error') statusDot.classList.add('bg-sol-red');
+    }
+
+    // =========================================================================
+    // Query execution
+    // =========================================================================
+    async function runQuery() {
+      if (!conn || isRunning) return;
+
+      const sql = editor.value.trim();
+      if (!sql) return;
+
+      isRunning = true;
+      runBtn.disabled = true;
+      setStatus('running', 'Running...');
+      runningBar.classList.remove('hidden');
+      hideAllResults();
+
+      const startTime = performance.now();
+
+      try {
+        const result = await conn.query(sql);
+        const elapsed = ((performance.now() - startTime) / 1000).toFixed(3);
+        const columns = result.schema.fields.map(f => f.name);
+        const numRows = result.numRows;
+
+        if (columns.length === 0 || numRows === 0 && looksLikeDDL(sql)) {
+          successContainer.classList.remove('hidden');
+          successMessage.textContent = 'Query executed successfully in ' + elapsed + 's';
+          queryInfo.textContent = elapsed + 's';
+          refreshSchema();
+        } else {
+          displayResults(result, columns, numRows, elapsed);
+        }
+
+        setStatus('ready', 'Ready');
+
+      } catch (err) {
+        const elapsed = ((performance.now() - startTime) / 1000).toFixed(3);
+        errorContainer.classList.remove('hidden');
+        errorMessage.textContent = err.message;
+        queryInfo.textContent = 'Error after ' + elapsed + 's';
+        setStatus('error', 'Error');
+        setTimeout(() => setStatus('ready', 'Ready'), 3000);
+      }
+
+      isRunning = false;
+      runBtn.disabled = false;
+      runningBar.classList.add('hidden');
+    }
+
+    function looksLikeDDL(sql) {
+      const first = sql.replace(/--[^\n]*/g, '').trim().split(/\s+/)[0].toUpperCase();
+      return ['CREATE', 'DROP', 'ALTER', 'INSERT', 'UPDATE', 'DELETE', 'COPY', 'LOAD', 'INSTALL', 'SET'].includes(first);
+    }
+
+    // =========================================================================
+    // Display results
+    // =========================================================================
+    const MAX_DISPLAY = 1000;
+
+    function displayResults(result, columns, numRows, elapsed) {
+      const displayCount = Math.min(numRows, MAX_DISPLAY);
+
+      // Header
+      resultsThead.innerHTML = '<tr>' +
+        columns.map(c => '<th>' + escapeHtml(c) + '</th>').join('') +
+        '</tr>';
+
+      // Body
+      const rows = result.toArray();
+      const fragments = [];
+      for (let i = 0; i < displayCount; i++) {
+        const row = rows[i];
+        fragments.push('<tr>');
+        for (const col of columns) {
+          let val = row[col];
+          if (val === null || val === undefined) {
+            fragments.push('<td class="null-val">NULL</td>');
+          } else {
+            if (typeof val === 'bigint') val = val.toString();
+            else if (typeof val === 'object' && val !== null) val = JSON.stringify(val);
+            else val = String(val);
+            fragments.push('<td title="' + escapeAttr(val) + '">' + escapeHtml(val) + '</td>');
+          }
+        }
+        fragments.push('</tr>');
+      }
+      resultsTbody.innerHTML = fragments.join('');
+
+      // Stats
+      const truncNote = numRows > MAX_DISPLAY ? ' (showing ' + MAX_DISPLAY + ')' : '';
+      resultStats.textContent =
+        numRows + ' row' + (numRows !== 1 ? 's' : '') + ' \u00d7 ' +
+        columns.length + ' col' + (columns.length !== 1 ? 's' : '') +
+        truncNote + ' \u00b7 ' + elapsed + 's';
+      queryInfo.textContent = numRows + ' rows \u00b7 ' + elapsed + 's';
+
+      resultsContainer.classList.remove('hidden');
+    }
+
+    // =========================================================================
+    // Clear all result panels
+    // =========================================================================
+    function hideAllResults() {
+      resultsContainer.classList.add('hidden');
+      errorContainer.classList.add('hidden');
+      successContainer.classList.add('hidden');
+      queryInfo.textContent = '';
+    }
+
+    // =========================================================================
+    // Helpers
+    // =========================================================================
+    function escapeHtml(str) {
+      const el = document.createElement('span');
+      el.textContent = str;
+      return el.innerHTML;
+    }
+
+    function escapeAttr(str) {
+      return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // =========================================================================
+    // Schema explorer
+    // =========================================================================
+    async function refreshSchema() {
+      if (!conn) return;
+      try {
+        const result = await conn.query(
+          `SELECT table_name, column_name, data_type
+           FROM information_schema.columns
+           WHERE table_schema = 'main'
+           ORDER BY table_name, ordinal_position`
+        );
+        const rows = result.toArray();
+        if (rows.length === 0) {
+          schemaInfo.innerHTML = '<p class="text-base-1 italic">No tables yet</p>';
+          return;
+        }
+        const tables = {};
+        for (const row of rows) {
+          const tbl = row.table_name;
+          if (!tables[tbl]) tables[tbl] = [];
+          tables[tbl].push({ col: row.column_name, type: row.data_type });
+        }
+        let html = '';
+        for (const [tbl, cols] of Object.entries(tables)) {
+          html += '<div class="mb-3">';
+          html += '<p class="text-sol-cyan font-semibold text-[12px]">' + escapeHtml(tbl) + '</p>';
+          html += '<ul class="ml-2 mt-1 space-y-0.5">';
+          for (const c of cols) {
+            html += '<li><span class="text-base-00">' + escapeHtml(c.col) +
+                    '</span> <span class="text-base-1">' + escapeHtml(c.type) + '</span></li>';
+          }
+          html += '</ul></div>';
+        }
+        schemaInfo.innerHTML = html;
+      } catch {
+        schemaInfo.innerHTML = '<p class="text-base-1 italic">No tables yet</p>';
+      }
+    }
+
+    // =========================================================================
+    // Build example buttons
+    // =========================================================================
+    function buildExamples() {
+      for (const ex of examples) {
+        const btn = document.createElement('button');
+        btn.className = 'example-btn';
+        btn.textContent = ex.name;
+        btn.addEventListener('click', () => {
+          editor.value = ex.sql;
+          editor.focus();
+        });
+        examplesList.appendChild(btn);
+      }
+    }
+
+    // =========================================================================
+    // File loading (drag & drop + browse)
+    // =========================================================================
+    async function loadFile(file) {
+      if (!db || !conn) return;
+
+      const name = file.name.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_]/g, '_');
+      const ext = file.name.split('.').pop().toLowerCase();
+
+      setStatus('running', 'Loading file...');
+
+      try {
+        const buffer = await file.arrayBuffer();
+        await db.registerFileBuffer(file.name, new Uint8Array(buffer));
+
+        let sql;
+        if (ext === 'parquet') {
+          sql = `CREATE OR REPLACE TABLE "${name}" AS SELECT * FROM read_parquet('${file.name}')`;
+        } else if (ext === 'csv' || ext === 'tsv') {
+          sql = `CREATE OR REPLACE TABLE "${name}" AS SELECT * FROM read_csv('${file.name}', auto_detect=true)`;
+        } else if (ext === 'json') {
+          sql = `CREATE OR REPLACE TABLE "${name}" AS SELECT * FROM read_json_auto('${file.name}')`;
+        } else {
+          throw new Error('Unsupported file type: .' + ext);
+        }
+
+        await conn.query(sql);
+        editor.value = `SELECT * FROM "${name}" LIMIT 100;`;
+        setStatus('ready', 'Ready');
+        await refreshSchema();
+        await runQuery();
+
+      } catch (err) {
+        setStatus('error', 'Load failed');
+        hideAllResults();
+        errorContainer.classList.remove('hidden');
+        errorMessage.textContent = 'File load error: ' + err.message;
+        setTimeout(() => setStatus('ready', 'Ready'), 3000);
+      }
+    }
+
+    // =========================================================================
+    // Event listeners
+    // =========================================================================
+    runBtn.addEventListener('click', runQuery);
+
+    clearBtn.addEventListener('click', () => {
+      editor.value = '';
+      hideAllResults();
+      editor.focus();
+    });
+
+    refreshSchemaBtn.addEventListener('click', refreshSchema);
+
+    editor.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        runQuery();
+        return;
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        editor.value = editor.value.substring(0, start) + '  ' + editor.value.substring(end);
+        editor.selectionStart = editor.selectionEnd = start + 2;
+      }
+    });
+
+    // Drag & drop
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = 'var(--color-sol-cyan)';
+      dropZone.style.background = 'rgba(42, 161, 152, 0.05)';
+    });
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.style.borderColor = '';
+      dropZone.style.background = '';
+    });
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = '';
+      dropZone.style.background = '';
+      if (e.dataTransfer.files.length > 0) {
+        loadFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    browseBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length > 0) {
+        loadFile(fileInput.files[0]);
+      }
+    });
+
+    // =========================================================================
+    // Init
+    // =========================================================================
+    buildExamples();
+    initDuckDB();
+  </script>
+</body>
+</html>
