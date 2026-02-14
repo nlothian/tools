@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DuckDB SQL — Browser Query Tool</title>
+  <title>AI SQL — Browser Query Tool</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -130,6 +130,10 @@
       animation: shimmer 1.5s ease-in-out infinite;
     }
 
+    #llm-thinking-chevron.expanded {
+      transform: rotate(90deg);
+    }
+
     @media (prefers-reduced-motion: reduce) {
       * {
         animation-duration: 0.01ms !important;
@@ -183,7 +187,119 @@
     <div class="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
 
       <!-- Left: Editor + Results -->
-      <div class="space-y-6">
+      <div class="space-y-6 min-w-0">
+
+        <!-- Natural Language Input Card -->
+        <div class="bg-base-2 border border-base-1/20 rounded shadow-[0_2px_8px_rgba(101,123,131,0.08)]">
+          <div class="flex items-center justify-between px-4 py-2.5 border-b border-base-1/15">
+            <div class="flex gap-1">
+              <button id="llm-tab-question" class="px-3 py-1 text-xs font-semibold rounded
+                             bg-base-3 text-base-00 border border-base-1/20
+                             transition-all duration-150 cursor-pointer">
+                Question
+              </button>
+              <button id="llm-tab-prompt" class="px-3 py-1 text-xs font-semibold rounded
+                             bg-transparent text-base-1 border border-transparent
+                             transition-all duration-150 cursor-pointer
+                             hover:text-base-00">
+                Prompt
+              </button>
+            </div>
+            <span class="text-[11px] text-base-1 hidden sm:inline">Ctrl+Enter to generate</span>
+          </div>
+
+          <!-- Question Tab Content -->
+          <div id="llm-tab-content-question">
+            <textarea id="nl-input"
+                      class="sql-editor w-full px-4 py-3 bg-base-3 text-[13px] text-base-00 font-mono leading-relaxed tracking-tight border-0 border-b border-base-1/15"
+                      rows="3"
+                      spellcheck="false"
+                      placeholder="Describe what you want to query, e.g. &quot;Show me the top 10 companies by revenue&quot;"></textarea>
+          </div>
+
+          <!-- Prompt Tab Content -->
+          <div id="llm-tab-content-prompt" class="hidden">
+            <div class="flex justify-between items-center px-4 pt-2">
+              <p class="text-[11px] text-base-1">Edit the prompt template. Use <code class="text-sol-cyan">{question}</code> and <code class="text-sol-cyan">{schema}</code> as placeholders.</p>
+              <button id="llm-reset-prompt-btn" class="text-[11px] text-sol-cyan hover:underline cursor-pointer bg-transparent border-0 font-mono p-0">Reset to Default</button>
+            </div>
+            <textarea id="llm-prompt-input"
+                      class="sql-editor w-full px-4 py-3 bg-base-3 text-[13px] text-base-00 font-mono leading-relaxed tracking-tight border-0 border-b border-base-1/15"
+                      rows="10"
+                      spellcheck="false"></textarea>
+          </div>
+          <div class="flex items-center justify-between px-4 py-2.5">
+            <!-- Model Status (left) -->
+            <div id="llm-status-section" class="text-[11px] text-base-01 flex items-center gap-2 flex-wrap">
+              <label class="inline-flex items-center gap-1.5 cursor-pointer select-none
+                            has-[:disabled]:opacity-50 has-[:disabled]:cursor-not-allowed">
+                <input type="checkbox" id="llm-webgpu-toggle" checked
+                       class="w-3.5 h-3.5 accent-sol-cyan cursor-pointer disabled:cursor-not-allowed">
+                <span>WebGPU</span>
+              </label>
+              <span id="llm-loading-message" class="text-base-1">Checking WebGPU...</span>
+              <span id="llm-progress-container"></span>
+            </div>
+            <!-- Buttons (right) -->
+            <div class="flex gap-2">
+              <button id="llm-stop-btn"
+                      class="hidden bg-sol-orange text-base-3 px-4 py-1.5 text-xs font-semibold rounded cursor-pointer
+                             transition-all duration-150
+                             hover:shadow-[0_4px_12px_rgba(203,75,22,0.3)]">
+                Stop
+              </button>
+              <button id="llm-generate-btn"
+                      disabled
+                      class="bg-sol-cyan text-base-3 px-5 py-1.5 text-xs font-semibold rounded cursor-pointer
+                             transition-all duration-150
+                             hover:shadow-[0_4px_12px_rgba(42,161,152,0.3)] hover:-translate-y-0.5
+                             active:scale-[0.98]
+                             disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none">
+                &#9889; Generate SQL
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- LLM Error display -->
+        <div id="llm-error-container" class="hidden">
+          <div class="bg-base-2 border border-sol-red/30 border-l-[3px] border-l-sol-red rounded p-4">
+            <div class="flex items-start gap-3">
+              <span class="text-sol-red text-sm mt-0.5 shrink-0">&#x2717;</span>
+              <div class="min-w-0">
+                <p class="text-xs text-sol-red font-semibold uppercase tracking-wider mb-1">LLM Error</p>
+                <pre id="llm-error-message" class="text-[13px] text-base-00 whitespace-pre-wrap leading-relaxed break-words font-mono"></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Thinking Section (collapsible) -->
+        <div id="llm-thinking-section" class="hidden">
+          <div class="bg-base-2 border border-base-1/20 rounded p-4 shadow-[0_2px_8px_rgba(101,123,131,0.08)]">
+            <button id="llm-thinking-toggle" class="w-full flex justify-between items-center text-left cursor-pointer bg-transparent border-0 font-mono p-0">
+              <div class="flex items-center gap-2">
+                <span id="llm-thinking-chevron" class="text-base-1 transition-transform duration-200 text-[10px]">&#9654;</span>
+                <span class="text-xs font-semibold uppercase tracking-wider">Thinking</span>
+                <span id="llm-thinking-status" class="text-[11px] text-base-1">(reasoning...)</span>
+              </div>
+            </button>
+            <div id="llm-thinking-content" class="mt-3">
+              <pre id="llm-thinking-output" class="text-[12px] text-base-01 whitespace-pre-wrap max-h-48 overflow-y-auto"></pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- Streaming Preview (shown during generation) -->
+        <div id="llm-streaming-section" class="hidden">
+          <div class="bg-base-2 border border-base-1/20 border-l-[3px] border-l-sol-cyan rounded p-4">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-xs font-semibold uppercase tracking-wider">Generating SQL</span>
+              <span id="llm-tps-display" class="text-[11px] text-base-1">-- tokens/sec</span>
+            </div>
+            <pre id="llm-streaming-output" class="text-[13px] text-base-00 whitespace-pre-wrap max-h-48 overflow-y-auto font-mono"></pre>
+          </div>
+        </div>
 
         <!-- SQL Editor Card -->
         <div class="bg-base-2 border border-base-1/20 rounded shadow-[0_2px_8px_rgba(101,123,131,0.08)]">
@@ -681,6 +797,8 @@ ORDER BY product;`
       } catch {
         schemaInfo.innerHTML = '<p class="text-base-1 italic">No tables yet</p>';
       }
+      // Sync schema to LLM prompt
+      updateSchemaInPrompt();
     }
 
     // =========================================================================
@@ -795,10 +913,430 @@ ORDER BY product;`
     });
 
     // =========================================================================
+    // LLM State
+    // =========================================================================
+    let llmWorker = null;
+    let llmReady = false;
+    let isGenerating = false;
+    let llmGenerateResolve = null;
+    let llmUseWebGPU = localStorage.getItem('sqlLlmUseWebGPU') !== 'false';
+
+    // Thinking state
+    let llmThinkingContent = '';
+    let llmSummaryContent = '';
+    let llmIsInsideThinkBlock = false;
+
+    // LLM DOM references
+    const nlInput = document.getElementById('nl-input');
+    const llmGenerateBtn = document.getElementById('llm-generate-btn');
+    const llmStopBtn = document.getElementById('llm-stop-btn');
+    const llmLoadingMessage = document.getElementById('llm-loading-message');
+    const llmProgressContainer = document.getElementById('llm-progress-container');
+    const llmWebGPUToggle = document.getElementById('llm-webgpu-toggle');
+    const llmErrorContainer = document.getElementById('llm-error-container');
+    const llmErrorMessage = document.getElementById('llm-error-message');
+    const llmThinkingSection = document.getElementById('llm-thinking-section');
+    const llmThinkingToggle = document.getElementById('llm-thinking-toggle');
+    const llmThinkingChevron = document.getElementById('llm-thinking-chevron');
+    const llmThinkingStatus = document.getElementById('llm-thinking-status');
+    const llmThinkingContentEl = document.getElementById('llm-thinking-content');
+    const llmThinkingOutput = document.getElementById('llm-thinking-output');
+    const llmStreamingSection = document.getElementById('llm-streaming-section');
+    const llmStreamingOutput = document.getElementById('llm-streaming-output');
+    const llmTpsDisplay = document.getElementById('llm-tps-display');
+    // Tab elements
+    const llmTabQuestion = document.getElementById('llm-tab-question');
+    const llmTabPrompt = document.getElementById('llm-tab-prompt');
+    const llmTabContentQuestion = document.getElementById('llm-tab-content-question');
+    const llmTabContentPrompt = document.getElementById('llm-tab-content-prompt');
+    const llmPromptInput = document.getElementById('llm-prompt-input');
+    const llmResetPromptBtn = document.getElementById('llm-reset-prompt-btn');
+
+    // =========================================================================
+    // LLM: Think Tag Parser
+    // =========================================================================
+    function parseThinkContent(fullText) {
+      if (!fullText.startsWith('<think>')) {
+        return { thinking: '', summary: fullText, isInsideThink: false };
+      }
+      const afterOpen = fullText.slice('<think>'.length);
+      const closeIndex = afterOpen.indexOf('</think>');
+      if (closeIndex === -1) {
+        return { thinking: afterOpen.trim(), summary: '', isInsideThink: true };
+      }
+      return {
+        thinking: afterOpen.slice(0, closeIndex).trim(),
+        summary: afterOpen.slice(closeIndex + '</think>'.length).trim(),
+        isInsideThink: false
+      };
+    }
+
+    // =========================================================================
+    // LLM: Thinking Section UI
+    // =========================================================================
+    function llmUpdateThinkingUI(thinking, isComplete) {
+      if (thinking) {
+        llmThinkingSection.classList.remove('hidden');
+        llmThinkingOutput.textContent = thinking;
+        if (isComplete) {
+          llmThinkingStatus.textContent = '(complete)';
+          llmCollapseThinking();
+        } else {
+          llmThinkingStatus.textContent = '(reasoning...)';
+          llmExpandThinking();
+        }
+      }
+    }
+
+    function llmExpandThinking() {
+      llmThinkingContentEl.classList.remove('hidden');
+      llmThinkingChevron.classList.add('expanded');
+    }
+
+    function llmCollapseThinking() {
+      llmThinkingContentEl.classList.add('hidden');
+      llmThinkingChevron.classList.remove('expanded');
+    }
+
+    function llmToggleThinking() {
+      llmThinkingContentEl.classList.toggle('hidden');
+      llmThinkingChevron.classList.toggle('expanded');
+    }
+
+    // =========================================================================
+    // LLM: Prompt Template
+    // =========================================================================
+    const LLM_DEFAULT_PROMPT = `You are a SQL query generator for DuckDB. Generate a single SQL query that answers the user's question.
+
+{schema}
+
+DuckDB SQL reference:
+- Aggregations: SELECT agg(col) FROM t — use SUM(), MIN(), MAX(), AVG(), COUNT(*), COUNT(DISTINCT col)
+- Counting: COUNT(*) counts all rows; COUNT(col) counts non-null; COUNT(DISTINCT col) counts unique values
+- Averages: AVG(col) returns the mean; combine with GROUP BY for per-group averages
+- Group By: SELECT col, AGG(val) FROM t GROUP BY col — groups rows; use HAVING to filter groups
+- Pivot: PIVOT t ON pivot_col USING AGG(val) — turns row values into columns; use IN ('a','b') to select specific values
+
+Rules:
+- Output ONLY the SQL query, no explanations or markdown
+- Use DuckDB SQL syntax
+- Do not wrap the SQL in code fences
+
+User question: {question}`;
+
+    let llmCurrentSchema = 'No tables exist yet. You can use DuckDB built-in functions, generate_series(), VALUES clauses, or read_csv()/read_parquet() with URLs.';
+
+    function getLLMPromptTemplate() {
+      return llmPromptInput.value || LLM_DEFAULT_PROMPT;
+    }
+
+    function buildSQLPrompt(question) {
+      const template = getLLMPromptTemplate();
+      return template.split('{question}').join(question).split('{schema}').join(llmCurrentSchema);
+    }
+
+    async function updateSchemaInPrompt() {
+      if (!conn) return;
+      try {
+        const result = await conn.query(
+          `SELECT table_name, column_name, data_type
+           FROM information_schema.columns
+           WHERE table_schema = 'main'
+           ORDER BY table_name, ordinal_position`
+        );
+        const rows = result.toArray();
+        if (rows.length === 0) {
+          llmCurrentSchema = 'No tables exist yet. You can use DuckDB built-in functions, generate_series(), VALUES clauses, or read_csv()/read_parquet() with URLs.';
+          return;
+        }
+
+        const tables = {};
+        for (const row of rows) {
+          const tbl = row.table_name;
+          if (!tables[tbl]) tables[tbl] = [];
+          tables[tbl].push(`${row.column_name} (${row.data_type})`);
+        }
+
+        let schema = 'Available tables:';
+        for (const [tbl, cols] of Object.entries(tables)) {
+          schema += `\n\nTable "${tbl}":\n  Columns: ${cols.join(', ')}`;
+        }
+        llmCurrentSchema = schema;
+      } catch {
+        // keep existing schema text
+      }
+    }
+
+    function extractSQL(output) {
+      let sql = output.trim();
+      // Strip markdown code fences if present
+      sql = sql.replace(/^```(?:sql)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
+      return sql.trim();
+    }
+
+    // =========================================================================
+    // LLM: Worker Communication
+    // =========================================================================
+    function initLLMWorker() {
+      llmWorker = new Worker('./sql-query-worker.js?v=' + Date.now(), { type: 'module' });
+      llmWebGPUToggle.checked = llmUseWebGPU;
+
+      llmWorker.addEventListener('message', (e) => {
+        const { status, nodeId, output, tps, numTokens, data, file, name, loaded, total } = e.data;
+
+        switch (status) {
+          case 'webgpu-ok':
+            llmLoadingMessage.textContent = 'Loading model (WebGPU)...';
+            llmLoadModel();
+            break;
+
+          case 'wasm-ok':
+            llmLoadingMessage.textContent = 'Loading model (CPU/WASM)...';
+            llmLoadModel();
+            break;
+
+          case 'loading':
+            llmLoadingMessage.textContent = data;
+            break;
+
+          case 'initiate':
+          case 'progress': {
+            const fileName = file || name;
+            const existing = Array.from(llmProgressContainer.children).find(
+              el => el.dataset.file === fileName
+            );
+            const isCached = status === 'progress' && loaded === total && total > 0;
+
+            if (!existing) {
+              const div = document.createElement('div');
+              div.dataset.file = fileName;
+              div.className = 'text-[11px] inline-flex items-center gap-1 ml-1';
+              div.innerHTML = `
+                <span class="truncate max-w-[120px]">${fileName.split('/').pop()}</span>
+                <span class="progress-pct">${isCached ? 'cached' : '0%'}</span>
+              `;
+              llmProgressContainer.appendChild(div);
+            }
+
+            const container = llmProgressContainer.querySelector(`[data-file="${fileName}"]`);
+            if (container && loaded !== undefined && total !== undefined) {
+              const pct = Math.round((loaded / total) * 100);
+              const cachedNow = loaded === total && total > 0;
+              container.querySelector('.progress-pct').textContent = cachedNow ? 'cached' : `${pct}%`;
+            }
+            break;
+          }
+
+          case 'done': {
+            const doneEl = llmProgressContainer.querySelector(`[data-file="${file || name}"]`);
+            if (doneEl) doneEl.remove();
+            break;
+          }
+
+          case 'ready':
+            llmReady = true;
+            const modeLabel = llmUseWebGPU ? 'WebGPU' : 'CPU';
+            llmLoadingMessage.textContent = `Model ready (${modeLabel})`;
+            llmProgressContainer.innerHTML = '';
+            llmGenerateBtn.disabled = !nlInput.value.trim();
+            break;
+
+          case 'start':
+            llmStreamingOutput.textContent = '';
+            break;
+
+          case 'update': {
+            const { thinking, summary, isInsideThink } = parseThinkContent(output);
+            llmThinkingContent = thinking;
+            llmSummaryContent = summary;
+            llmIsInsideThinkBlock = isInsideThink;
+
+            const thinkingComplete = !isInsideThink && thinking.length > 0;
+            llmUpdateThinkingUI(thinking, thinkingComplete);
+
+            if (isInsideThink) {
+              llmStreamingOutput.textContent = '';
+            } else {
+              llmStreamingOutput.textContent = summary;
+            }
+
+            if (tps) {
+              llmTpsDisplay.textContent = `${tps.toFixed(1)} tokens/sec`;
+            }
+            break;
+          }
+
+          case 'complete':
+            if (llmGenerateResolve) {
+              const finalParsed = parseThinkContent(output);
+              llmThinkingContent = finalParsed.thinking;
+              llmGenerateResolve(finalParsed.summary || output);
+              llmGenerateResolve = null;
+            }
+            break;
+
+          case 'error': {
+            console.error('LLM Worker error:', data);
+            llmErrorContainer.classList.remove('hidden');
+            llmErrorMessage.textContent = data;
+
+            if (llmGenerateResolve) {
+              llmGenerateResolve(null);
+              llmGenerateResolve = null;
+            }
+
+            llmResetGenerationUI();
+            setTimeout(() => llmErrorContainer.classList.add('hidden'), 8000);
+            break;
+          }
+        }
+      });
+
+      if (llmUseWebGPU) {
+        llmWorker.postMessage({ type: 'check' });
+      } else {
+        llmLoadingMessage.textContent = 'WebGPU disabled, using CPU...';
+        llmWorker.postMessage({ type: 'check-wasm' });
+      }
+    }
+
+    function llmLoadModel() {
+      const device = llmUseWebGPU ? 'webgpu' : 'wasm';
+      llmWorker.postMessage({ type: 'load', data: { device } });
+    }
+
+    async function llmGenerate(prompt) {
+      return new Promise((resolve) => {
+        llmGenerateResolve = resolve;
+        llmWorker.postMessage({
+          type: 'generate',
+          data: { nodeId: 'sql', prompt, maxNewTokens: 2048 },
+        });
+      });
+    }
+
+    // =========================================================================
+    // LLM: Generation Pipeline
+    // =========================================================================
+    async function generateSQLFromNL() {
+      const question = nlInput.value.trim();
+      if (!question || !llmReady || isGenerating) return;
+
+      isGenerating = true;
+
+      // Reset state
+      llmThinkingContent = '';
+      llmSummaryContent = '';
+      llmIsInsideThinkBlock = false;
+      llmThinkingSection.classList.add('hidden');
+      llmErrorContainer.classList.add('hidden');
+
+      // Update UI
+      llmGenerateBtn.classList.add('hidden');
+      llmStopBtn.classList.remove('hidden');
+      llmStreamingSection.classList.remove('hidden');
+      llmStreamingOutput.textContent = '';
+      llmTpsDisplay.textContent = '-- tokens/sec';
+
+      const prompt = buildSQLPrompt(question);
+      const output = await llmGenerate(prompt);
+
+      if (output) {
+        // Finalize thinking UI
+        if (llmThinkingContent) {
+          llmUpdateThinkingUI(llmThinkingContent, true);
+        }
+
+        // Extract SQL and put it in the editor
+        const sql = extractSQL(output);
+        editor.value = sql;
+        editor.focus();
+      }
+
+      llmResetGenerationUI();
+    }
+
+    function llmResetGenerationUI() {
+      isGenerating = false;
+      llmGenerateBtn.classList.remove('hidden');
+      llmStopBtn.classList.add('hidden');
+      llmStreamingSection.classList.add('hidden');
+      llmGenerateBtn.disabled = !llmReady || !nlInput.value.trim();
+    }
+
+    function llmStopGeneration() {
+      llmWorker.postMessage({ type: 'interrupt' });
+      llmResetGenerationUI();
+    }
+
+    // =========================================================================
+    // LLM: Event Listeners
+    // =========================================================================
+    nlInput.addEventListener('input', () => {
+      llmGenerateBtn.disabled = !llmReady || !nlInput.value.trim();
+    });
+
+    nlInput.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        generateSQLFromNL();
+      }
+    });
+
+    llmGenerateBtn.addEventListener('click', generateSQLFromNL);
+    llmStopBtn.addEventListener('click', llmStopGeneration);
+    llmThinkingToggle.addEventListener('click', llmToggleThinking);
+
+    // Tab switching
+    function llmSwitchTab(tab) {
+      const isQuestion = tab === 'question';
+      llmTabContentQuestion.classList.toggle('hidden', !isQuestion);
+      llmTabContentPrompt.classList.toggle('hidden', isQuestion);
+
+      llmTabQuestion.className = isQuestion
+        ? 'px-3 py-1 text-xs font-semibold rounded bg-base-3 text-base-00 border border-base-1/20 transition-all duration-150 cursor-pointer'
+        : 'px-3 py-1 text-xs font-semibold rounded bg-transparent text-base-1 border border-transparent transition-all duration-150 cursor-pointer hover:text-base-00';
+      llmTabPrompt.className = !isQuestion
+        ? 'px-3 py-1 text-xs font-semibold rounded bg-base-3 text-base-00 border border-base-1/20 transition-all duration-150 cursor-pointer'
+        : 'px-3 py-1 text-xs font-semibold rounded bg-transparent text-base-1 border border-transparent transition-all duration-150 cursor-pointer hover:text-base-00';
+    }
+
+    llmTabQuestion.addEventListener('click', () => llmSwitchTab('question'));
+    llmTabPrompt.addEventListener('click', () => llmSwitchTab('prompt'));
+
+    // Prompt persistence
+    llmPromptInput.value = localStorage.getItem('sqlLlmPromptTemplate') || LLM_DEFAULT_PROMPT;
+
+    llmPromptInput.addEventListener('input', () => {
+      localStorage.setItem('sqlLlmPromptTemplate', llmPromptInput.value);
+    });
+
+    llmResetPromptBtn.addEventListener('click', () => {
+      llmPromptInput.value = LLM_DEFAULT_PROMPT;
+      localStorage.removeItem('sqlLlmPromptTemplate');
+    });
+
+    llmWebGPUToggle.addEventListener('change', (e) => {
+      llmUseWebGPU = e.target.checked;
+      localStorage.setItem('sqlLlmUseWebGPU', llmUseWebGPU);
+
+      if (llmReady) {
+        if (confirm('Changing this setting requires reloading the page. Reload now?')) {
+          window.location.reload();
+        } else {
+          e.target.checked = !llmUseWebGPU;
+          llmUseWebGPU = !llmUseWebGPU;
+          localStorage.setItem('sqlLlmUseWebGPU', llmUseWebGPU);
+        }
+      }
+    });
+
+    // =========================================================================
     // Init
     // =========================================================================
     buildExamples();
     initDuckDB();
+    initLLMWorker();
   </script>
 </body>
 </html>
