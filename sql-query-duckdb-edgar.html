@@ -426,6 +426,27 @@
             </button>
           </div>
 
+          <!-- Load from URL -->
+          <div class="bg-base-2 border border-base-1/20 rounded p-4">
+            <label class="block text-xs text-base-1 mb-1.5 uppercase tracking-wider">Load from URL</label>
+            <div class="flex gap-2">
+              <input type="text" id="url-input"
+                     placeholder="https://example.com/data.csv"
+                     class="flex-1 min-w-0 px-2 py-1.5 bg-base-3 border border-base-1/20 rounded text-[12px] text-base-00 font-mono
+                            transition-all duration-200
+                            focus:outline-none focus:border-sol-cyan focus:ring-[3px] focus:ring-sol-cyan/20">
+              <button id="load-url-btn"
+                      class="px-3 py-1.5 text-[11px] font-semibold rounded bg-sol-cyan text-base-3
+                             transition-all duration-150
+                             hover:shadow-[0_4px_12px_rgba(42,161,152,0.3)] hover:-translate-y-0.5
+                             active:scale-[0.98]
+                             disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none">
+                Load
+              </button>
+            </div>
+            <p class="text-[10px] text-base-1 mt-1.5">.csv, .parquet, .json — must allow CORS</p>
+          </div>
+
         </div>
       </aside>
 
@@ -468,6 +489,8 @@
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file-input');
     const browseBtn = document.getElementById('browse-btn');
+    const urlInput = document.getElementById('url-input');
+    const loadUrlBtn = document.getElementById('load-url-btn');
 
     // =========================================================================
     // Example queries
@@ -642,10 +665,10 @@ ORDER BY product;`
     // Query execution
     // =========================================================================
     async function runQuery() {
-      if (!conn || isRunning) return;
+      if (!conn || isRunning) return { ok: false, error: 'Not ready' };
 
       const sql = editor.value.trim();
-      if (!sql) return;
+      if (!sql) return { ok: false, error: 'Empty query' };
 
       isRunning = true;
       runBtn.disabled = true;
@@ -654,6 +677,7 @@ ORDER BY product;`
       hideAllResults();
 
       const startTime = performance.now();
+      let result_status;
 
       try {
         const result = await conn.query(sql);
@@ -672,6 +696,19 @@ ORDER BY product;`
 
         setStatus('ready', 'Ready');
 
+        // Capture columns and first row for LLM feedback
+        let firstRow = null;
+        if (columns.length > 0 && numRows > 0) {
+          const rows = result.toArray();
+          const row0 = rows[0];
+          firstRow = {};
+          for (const col of columns) {
+            const val = row0[col];
+            firstRow[col] = val === null ? 'NULL' : String(val);
+          }
+        }
+        result_status = { ok: true, columns, numRows, firstRow };
+
       } catch (err) {
         const elapsed = ((performance.now() - startTime) / 1000).toFixed(3);
         errorContainer.classList.remove('hidden');
@@ -679,11 +716,13 @@ ORDER BY product;`
         queryInfo.textContent = 'Error after ' + elapsed + 's';
         setStatus('error', 'Error');
         setTimeout(() => setStatus('ready', 'Ready'), 3000);
+        result_status = { ok: false, error: err.message };
       }
 
       isRunning = false;
       runBtn.disabled = false;
       runningBar.classList.add('hidden');
+      return result_status;
     }
 
     function looksLikeDDL(sql) {
@@ -716,7 +755,17 @@ ORDER BY product;`
             fragments.push('<td class="null-val">NULL</td>');
           } else {
             if (typeof val === 'bigint') val = val.toString();
-            else if (typeof val === 'object' && val !== null) val = JSON.stringify(val);
+            else if (typeof val === 'object' && val !== null) {
+              // DuckDB returns Decimal/numeric types as objects with valueOf()
+              const prim = val.valueOf();
+              if (typeof prim === 'number' || typeof prim === 'bigint' || typeof prim === 'string') {
+                val = String(prim);
+              } else if (val instanceof Date) {
+                val = val.toISOString();
+              } else {
+                val = JSON.stringify(val);
+              }
+            }
             else val = String(val);
             fragments.push('<td title="' + escapeAttr(val) + '">' + escapeHtml(val) + '</td>');
           }
@@ -859,6 +908,86 @@ ORDER BY product;`
     }
 
     // =========================================================================
+    // URL loading
+    // =========================================================================
+    async function loadURL() {
+      if (!db || !conn) return;
+
+      const url = urlInput.value.trim();
+      if (!url) return;
+
+      // Validate URL
+      let parsed;
+      try {
+        parsed = new URL(url);
+      } catch {
+        errorContainer.classList.remove('hidden');
+        errorMessage.textContent = 'Invalid URL. Please enter a full URL starting with https://';
+        return;
+      }
+
+      // Determine file type from URL path
+      const path = parsed.pathname.toLowerCase();
+      let ext;
+      if (path.endsWith('.parquet')) ext = 'parquet';
+      else if (path.endsWith('.csv')) ext = 'csv';
+      else if (path.endsWith('.tsv')) ext = 'tsv';
+      else if (path.endsWith('.json')) ext = 'json';
+      else {
+        errorContainer.classList.remove('hidden');
+        errorMessage.textContent = 'Could not detect file type from URL. The URL must end in .csv, .parquet, .tsv, or .json';
+        return;
+      }
+
+      // Derive table name from filename in URL
+      const filename = parsed.pathname.split('/').pop();
+      const name = filename.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_]/g, '_') || 'remote_data';
+
+      setStatus('running', 'Loading URL...');
+      loadUrlBtn.disabled = true;
+      hideAllResults();
+
+      try {
+        // First check CORS with a HEAD request
+        try {
+          await fetch(url, { method: 'HEAD', mode: 'cors' });
+        } catch {
+          throw new Error(
+            `CORS error: The server at ${parsed.hostname} does not allow cross-origin requests. ` +
+            `The file cannot be loaded directly in the browser because the server does not include ` +
+            `the "Access-Control-Allow-Origin" header in its response. ` +
+            `Try downloading the file and dropping it into the drop zone instead, ` +
+            `or use a URL from a CORS-friendly host (e.g. raw.githubusercontent.com).`
+          );
+        }
+
+        let sql;
+        if (ext === 'parquet') {
+          sql = `CREATE OR REPLACE TABLE "${name}" AS SELECT * FROM read_parquet('${url}')`;
+        } else if (ext === 'csv' || ext === 'tsv') {
+          sql = `CREATE OR REPLACE TABLE "${name}" AS SELECT * FROM read_csv('${url}', auto_detect=true)`;
+        } else {
+          sql = `CREATE OR REPLACE TABLE "${name}" AS SELECT * FROM read_json_auto('${url}')`;
+        }
+
+        await conn.query(sql);
+        editor.value = `SELECT * FROM "${name}" LIMIT 100;`;
+        setStatus('ready', 'Ready');
+        await refreshSchema();
+        await runQuery();
+
+      } catch (err) {
+        setStatus('error', 'Load failed');
+        hideAllResults();
+        errorContainer.classList.remove('hidden');
+        errorMessage.textContent = err.message;
+        setTimeout(() => setStatus('ready', 'Ready'), 3000);
+      }
+
+      loadUrlBtn.disabled = false;
+    }
+
+    // =========================================================================
     // Event listeners
     // =========================================================================
     runBtn.addEventListener('click', runQuery);
@@ -909,6 +1038,14 @@ ORDER BY product;`
     fileInput.addEventListener('change', () => {
       if (fileInput.files.length > 0) {
         loadFile(fileInput.files[0]);
+      }
+    });
+
+    loadUrlBtn.addEventListener('click', loadURL);
+    urlInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        loadURL();
       }
     });
 
@@ -1218,6 +1355,8 @@ User question: {question}`;
     // =========================================================================
     // LLM: Generation Pipeline
     // =========================================================================
+    const LLM_MAX_RETRIES = 2;
+
     async function generateSQLFromNL() {
       const question = nlInput.value.trim();
       if (!question || !llmReady || isGenerating) return;
@@ -1238,19 +1377,101 @@ User question: {question}`;
       llmStreamingOutput.textContent = '';
       llmTpsDisplay.textContent = '-- tokens/sec';
 
-      const prompt = buildSQLPrompt(question);
-      const output = await llmGenerate(prompt);
+      let prompt = buildSQLPrompt(question);
+      let lastSQL = '';
+      let lastFeedback = '';
 
-      if (output) {
+      for (let attempt = 0; attempt <= LLM_MAX_RETRIES; attempt++) {
+        // For retries, augment the prompt with feedback
+        if (attempt > 0) {
+          llmThinkingContent = '';
+          llmSummaryContent = '';
+          llmIsInsideThinkBlock = false;
+          llmStreamingOutput.textContent = '';
+          llmTpsDisplay.textContent = '-- tokens/sec';
+
+          prompt = buildSQLPrompt(question) + '\n\n' + lastFeedback +
+            '\n\nPlease fix the SQL and try again. Output ONLY the corrected SQL query.';
+        }
+
+        const output = await llmGenerate(prompt);
+
+        if (!output) break; // interrupted or LLM error
+
         // Finalize thinking UI
         if (llmThinkingContent) {
           llmUpdateThinkingUI(llmThinkingContent, true);
         }
 
-        // Extract SQL and put it in the editor
+        // Extract SQL, put it in editor, and auto-run
         const sql = extractSQL(output);
         editor.value = sql;
-        editor.focus();
+        lastSQL = sql;
+
+        const result = await runQuery();
+
+        if (!result.ok) {
+          // Query errored — build error feedback for retry
+          lastFeedback = `The previous SQL query:\n${lastSQL}\n\nReturned this error:\n${result.error}`;
+          if (attempt < LLM_MAX_RETRIES) {
+            llmStreamingOutput.textContent = `SQL error, retrying (${attempt + 1}/${LLM_MAX_RETRIES})...`;
+            llmStreamingSection.classList.remove('hidden');
+          }
+          continue;
+        }
+
+        // Query succeeded — verify results match the question
+        if (attempt < LLM_MAX_RETRIES && result.columns && result.firstRow) {
+          const resultSummary = `The query ran successfully and returned ${result.numRows} row(s).\n` +
+            `Columns: ${result.columns.join(', ')}\n` +
+            `First row: ${result.columns.map(c => c + '=' + result.firstRow[c]).join(', ')}`;
+
+          // Ask LLM to verify
+          llmThinkingContent = '';
+          llmSummaryContent = '';
+          llmIsInsideThinkBlock = false;
+          llmStreamingOutput.textContent = 'Verifying results...';
+          llmStreamingSection.classList.remove('hidden');
+          llmTpsDisplay.textContent = '-- tokens/sec';
+
+          const verifyPrompt = buildSQLPrompt(question) +
+            `\n\nThe SQL query that was executed:\n${lastSQL}\n\n${resultSummary}\n\n` +
+            `Check if these results correctly answer the user's question. ` +
+            `If the results look correct, respond with exactly: Done\n` +
+            `If the results are wrong, respond with the corrected SQL query only.`;
+
+          const verifyOutput = await llmGenerate(verifyPrompt);
+
+          if (!verifyOutput) break;
+
+          if (llmThinkingContent) {
+            llmUpdateThinkingUI(llmThinkingContent, true);
+          }
+
+          const cleaned = extractSQL(verifyOutput);
+          if (cleaned.toUpperCase().replace(/[^A-Z]/g, '') === 'DONE') {
+            editor.value = lastSQL; // restore the working SQL
+            break; // verified correct
+          }
+
+          // LLM provided a corrected query — run it
+          lastFeedback = `${resultSummary}\n\nThe results did not correctly answer the question. You provided a corrected query.`;
+          editor.value = cleaned;
+          lastSQL = cleaned;
+
+          const retryResult = await runQuery();
+          if (retryResult.ok) break;
+
+          // Corrected query also failed
+          lastFeedback = `The corrected SQL query:\n${cleaned}\n\nReturned this error:\n${retryResult.error}`;
+          if (attempt < LLM_MAX_RETRIES) {
+            llmStreamingOutput.textContent = `SQL error, retrying (${attempt + 1}/${LLM_MAX_RETRIES})...`;
+            llmStreamingSection.classList.remove('hidden');
+          }
+          continue;
+        }
+
+        break; // success, no more retries available or DDL query
       }
 
       llmResetGenerationUI();
