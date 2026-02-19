@@ -5,6 +5,16 @@
     <link>https://tools.nicklothian.com</link>
     <description>Recent changes and updates to Nick's Tools.</description>
     <language>en-us</language>
-    <lastBuildDate>Wed, 19 Feb 2026 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Thu, 19 Feb 2026 00:00:00 +0000</lastBuildDate>
+    <item>
+      <title>chore: replace git-stage-commit-push-pr skill with git-for-tools</title>
+      <description>chore: replace git-stage-commit-push-pr skill with git-for-tools</description>
+      <pubDate>Thu, 19 Feb 2026 00:00:00 +0000</pubDate>
+    </item>
+    <item>
+      <title>chore: add claude skill config and changes feed</title>
+      <description>chore: add claude skill config and changes feed</description>
+      <pubDate>Thu, 19 Feb 2026 00:00:00 +0000</pubDate>
+    </item>
   </channel>
 </rss>

@@ -1,5 +1,5 @@
 ---
-name: git-stage-commit-push-pr
+name: git-for-tools
 description: Safely stage and commit changes, then optionally push and create a pull request. Use when a user asks to run git add/git commit and wants interactive control over whether unexpected extra files are included, plus optional prompts to push and open a PR with conventional commit style.
 ---
 
