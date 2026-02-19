@@ -7,6 +7,11 @@
     <language>en-us</language>
     <lastBuildDate>Thu, 19 Feb 2026 00:00:00 +0000</lastBuildDate>
     <item>
+      <title>ci: add workflow to sync changes.rss to nicklothian.com</title>
+      <description>ci: add workflow to sync changes.rss to nicklothian.com</description>
+      <pubDate>Thu, 19 Feb 2026 00:00:00 +0000</pubDate>
+    </item>
+    <item>
       <title>chore: replace git-stage-commit-push-pr skill with git-for-tools</title>
       <description>chore: replace git-stage-commit-push-pr skill with git-for-tools</description>
       <pubDate>Thu, 19 Feb 2026 00:00:00 +0000</pubDate>

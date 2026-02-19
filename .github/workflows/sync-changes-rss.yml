@@ -1,0 +1,35 @@
+name: Sync changes.rss to nicklothian.com
+
+on:
+  push:
+    branches: [main]
+    paths: [changes.rss]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tools repo
+        uses: actions/checkout@v4
+
+      - name: Checkout nicklothian.com
+        uses: actions/checkout@v4
+        with:
+          repository: nlothian/nicklothian.com
+          token: ${{ secrets.NICKLOTHIAN_COM_PAT }}
+          path: nicklothian-com
+
+      - name: Copy changes.rss
+        run: |
+          mkdir -p nicklothian-com/.updates
+          cp changes.rss nicklothian-com/.updates/toolchanges.rss
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.NICKLOTHIAN_COM_PAT }}
+          path: nicklothian-com
+          branch: update-toolchanges-rss
+          title: "Update tools changes feed"
+          body: "Automated update of `.updates/toolchanges.rss` from [tools repo](https://github.com/nlothian/tools)."
+          commit-message: "chore: update toolchanges.rss from tools repo"
